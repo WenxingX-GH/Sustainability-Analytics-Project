@@ -3,9 +3,9 @@ Customer Portal Dashboard for local energy provider with selection possibilites 
 ---
 
 ---
-## Project Structure
 
-"""
+## Project Structure
+```
 Sustainability-Analytics-Project
 ├── data/
 │   └──       (raw data, please save it in your own PC)
@@ -14,4 +14,4 @@ Sustainability-Analytics-Project
 ├── code/
 │   └──                             (R code files)  
 └── README.md                       (Project README documentation)
-"""
+```
