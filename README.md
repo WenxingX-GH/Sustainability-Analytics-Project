@@ -4,6 +4,7 @@ Customer Portal Dashboard for local energy provider with selection possibilites 
 
 ---
 ## Project Structure
+
 """
 Sustainability-Analytics-Project
 ├── data/
