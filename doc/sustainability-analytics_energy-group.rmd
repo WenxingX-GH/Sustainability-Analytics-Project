@@ -1,0 +1,163 @@
+
+---
+title: ""Report for Sustainability Analytics: Energy Recommendations 
+based on weather data"
+author: "Barbara Maier, Wenxing Xu, Güney Usta"
+date: "2025-09-05"
+output: 
+  html_document: 
+    toc: true
+    toc_float: true
+  pdf_document: default
+  word_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = FALSE,       # Show R code in the output document
+  warning = FALSE,  # Suppress warnings in the output document
+  message = FALSE,  # Suppress messages in the output document
+  fig.width = 8,    # Width of figures in inches    
+  fig.height = 5    # Height of figures in inches
+  )
+```
+
+------------------------------------------------------------------------
+
+```{r load-packages}
+# Load necessary packages
+library(dplyr)    # Data manipulation
+library(ggplot2)  # Data visualization  
+library(readr)    # Reading CSV files
+library(tidyverse)
+library(lubridate)
+```
+
+------------------------------------------------------------------------
+
+# Introduction
+
+The transition to renewable energy sources presents both opportunities and 
+challenges for individual homeowners. While technologies like photovoltaic (PV) 
+systems and electric vehicles (EVs) are becoming more common, optimizing their 
+use requires a deeper understanding of energy consumption patterns. 
+The intermittent nature of solar energy, heavily influenced by local weather 
+conditions, adds a layer of complexity to managing home energy efficiently.
+
+This analysis addresses this challenge by examining historical energy data 
+from a residential building equipped with a PV system and an EV. By correlating
+the household's energy consumption data with local weather patterns, we seek to 
+identify key relationships and trends. The ultimate goal is to develop 
+data-driven recommendations that provide the homeowner with simple, 
+effective advice to increase their self-consumption of clean energy. 
+This will help in reducing energy costs and contributing to a more 
+sustainable energy system.
+
+# Datasets & Datasources
+
+This analysis utilizes two primary data sources:
+
+1. AEW Energie AG: Provides detailed energy production and consumption data 
+for the household.
+  - PV_Production_kWh: Photovoltaic energy production.
+  - Consumption_Base_Load_kWh: Base load energy consumption.
+  - Consumption_Heat_Pump_kWh: Energy consumed by the heat pump.
+  - Consumption_EV_Charging_kWh: Energy used for charging an electric vehicle.
+  - Consumption_Cooking_Lighting_etc_kWh: Energy for cooking, lighting, and 
+  other appliances.
+  - Consumption_Total_kWh: Total household energy consumption.
+  - Self_Consumption_PV_kWh: Portion of PV production consumed directly.
+  - Grid_Feed_In_PV_kWh: Surplus PV energy fed back into the grid.
+  - Grid_Import_Total_kWh: Total energy imported from the grid.
+
+2. MeteoSwiss: Provides local weather data.
+- wind_speed_10m_mean: Mean wind speed at 10 meters.
+- temperature_2m_mean: Mean air temperature at 2 meters.
+- relative_humidity_2m_mean_from_hourly: Mean relative humidity at 2 meters.
+
+# Data wrangling
+
+## Function to load and process the AEW energy data
+
+load_and_process_energy_data <- function(file_path) {
+  # Read the raw data which is in a long format
+  energy_long <- read_csv(file_path)
+  
+  # Pivot the data from long to wide format
+  # This creates a separate column for each unique "Metric"
+  energy_wide <- energy_long %>%
+    pivot_wider(
+      names_from = Metric,
+      values_from = Value
+    ) %>%
+    # Ensure column names are clean (no special characters)
+    janitor::clean_names()
+  
+  # Convert Timestamp to datetime objects and create a separate date column 
+  for merging
+  energy_wide <- energy_wide %>%
+    mutate(
+      timestamp = as_datetime(timestamp),
+      date = as_date(timestamp)
+    )
+  
+  return(energy_wide)
+}
+
+## Function to load and process the MeteoSwiss weather data
+
+  # @WX: file for weather data? 
+  
+load_and_process_weather_data <- function(file_path) {
+  # Read the raw weather data
+  weather_raw <- read_delim(file_path, delim = ";")
+  
+  # Clean up the weather data
+  weather_clean <- weather_raw %>%
+    # Select only the relevant columns
+    select(station_abbr, reference_timestamp, th9120dv) %>%
+    # Rename columns for clarity and consistency
+    rename(
+      station = station_abbr,
+      timestamp_str = reference_timestamp,
+      temperature_daily = th9120dv
+    ) %>%
+    # Convert the timestamp string to actual date objects
+    mutate(date = dmy_hm(timestamp_str) %>% as_date()) %>%
+    # Filter for the relevant date range (2020 onwards)
+    filter(date >= as_date("2020-01-01"))
+  
+  return(weather_clean)
+}
+
+
+## Define file paths 
+
+energy_file <- "sustainability_analytics_energy/aew_household_energy_profile_wynemattestrasse_17_5years.csv"
+weather_file <- "# ??????????"
+
+## Execute the functions to get processed data frames
+
+energy_df <- load_and_process_energy_data(energy_file)
+weather_df <- load_and_process_weather_data(weather_file)
+
+# Merge the energy and weather dataframes using the 'date' column
+# A left_join keeps all rows from the energy data and adds matching weather data
+final_df <- left_join(energy_df, weather_df, by = "date")
+
+# Display the first few rows of the final merged dataset to verify
+head(final_df)
+
+
+# Exploratory Data Analysis (EDA)
+
+TODO: Add EDA content here.
+
+# Modeling
+
+TODO: Add modeling steps here.
+
+# Results and Discussion
+
+TODO: Add results and discussion here.
+
