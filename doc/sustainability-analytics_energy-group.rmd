@@ -31,6 +31,7 @@ library(ggplot2)  # Data visualization
 library(readr)    # Reading CSV files
 library(tidyverse)
 library(lubridate)
+library(janitor)
 ```
 
 ------------------------------------------------------------------------
@@ -79,6 +80,7 @@ for the household.
 
 ## Function to load and process the AEW energy data
 
+```{r}
 load_and_process_energy_data <- function(file_path) {
   # Read the raw data which is in a long format
   energy_long <- read_csv(file_path)
@@ -87,40 +89,78 @@ load_and_process_energy_data <- function(file_path) {
   # This creates a separate column for each unique "Metric"
   energy_wide <- energy_long %>%
     pivot_wider(
-      names_from = Metric,
-      values_from = Value
+      names_from  = Metric,
+      values_from = Value,
+      values_fn   = ~ mean(.x, na.rm = TRUE),   # aggregate duplicates
+      values_fill = NA_real_
     ) %>%
-    # Ensure column names are clean (no special characters)
-    janitor::clean_names()
-  
-  # Convert Timestamp to datetime objects and create a separate date column 
-  for merging
-  energy_wide <- energy_wide %>%
+    janitor::clean_names() %>%
     mutate(
       timestamp = as_datetime(timestamp),
       date = as_date(timestamp)
     )
-  
+
   return(energy_wide)
 }
+```
+
+
+```{r}
+
+energy_file <- "./data/household_energy_profile_Wynemattestrasse_17_5_years.csv"
+energy_df <- read_csv(energy_file)
+head(energy_df,100) 
+
+```
+
+
+```{r}
+
+## Execute the functions to get processed data frames
+
+energy_df <- load_and_process_energy_data(energy_file)
+
+# Display the first few rows of the final merged dataset to verify
+head(energy_df, 100)
+```
+
+```{r}
+metroswiss_file_d <- "./data/ogd-smn_bus_d_historical.csv"
+metroswiss_file_h <- "./data/ogd-smn_bus_h_historical_2020-2029.csv"
+df_metroswiss_d <- read_csv(metroswiss_file_d)
+df_metroswiss_h <- read_csv(metroswiss_file_h)
+head(df_metroswiss_d,10) 
+head(df_metroswiss_h,10)
+str(df_metroswiss_d,10)
+str(df_metroswiss_h,10)
+```
+
 
 ## Function to load and process the MeteoSwiss weather data
 
+```{r}
   # @WX: file for weather data? 
   
-load_and_process_weather_data <- function(file_path) {
+load_and_process_weather_data <- function(file_path_weatherdata) {
   # Read the raw weather data
-  weather_raw <- read_delim(file_path, delim = ";")
+  weather_raw <- read_delim(file_path_weatherdata, delim = ";")
   
   # Clean up the weather data
   weather_clean <- weather_raw %>%
     # Select only the relevant columns
-    select(station_abbr, reference_timestamp, th9120dv) %>%
+    select(station_abbr, 
+           reference_timestamp, 
+           tre200h0,    # daily temperature
+           ure200h0,    # humidity
+           fkl010h0     # wind speed
+           ) %>%
     # Rename columns for clarity and consistency
     rename(
       station = station_abbr,
       timestamp_str = reference_timestamp,
-      temperature_daily = th9120dv
+      `temperature_hourly/°C` = tre200h0,
+      `humidity/%` = ure200h0,
+      `wind_speed/m/s` = fkl010h0
     ) %>%
     # Convert the timestamp string to actual date objects
     mutate(date = dmy_hm(timestamp_str) %>% as_date()) %>%
@@ -130,11 +170,17 @@ load_and_process_weather_data <- function(file_path) {
   return(weather_clean)
 }
 
+```
+
+
+```{r}
+# set working directory
+setwd("C:/Users/xwxba/Documents/DataSc/Sustainability-Analytics/Sustainability-Analytics-Project")
 
 ## Define file paths 
 
-energy_file <- "sustainability_analytics_energy/aew_household_energy_profile_wynemattestrasse_17_5years.csv"
-weather_file <- "# ??????????"
+energy_file <- "./data/household_energy_profile_Wynemattestrasse_17_5_years.csv"
+weather_file <- "./data/ogd-smn_bus_h_historical_2020-2029.csv"
 
 ## Execute the functions to get processed data frames
 
@@ -143,15 +189,130 @@ weather_df <- load_and_process_weather_data(weather_file)
 
 # Merge the energy and weather dataframes using the 'date' column
 # A left_join keeps all rows from the energy data and adds matching weather data
-final_df <- left_join(energy_df, weather_df, by = "date")
+final_df_h <- left_join(energy_df, weather_df, by = "date")
 
 # Display the first few rows of the final merged dataset to verify
-head(final_df)
+head(final_df_h, 100)
+
+
+```
+
+```{r}
+# Save the final merged dataset to a CSV file
+readr::write_csv(final_df_h, "final_df_h.csv")
+```
+
+```{r}
+str(final_df_h)
+```
 
 
 # Exploratory Data Analysis (EDA)
 
 TODO: Add EDA content here.
+
+```{r}
+
+# compute daily means for weather + daily sums for energy
+
+final_df_d <- final_df_h %>%
+  group_by(date) %>%
+  summarise(
+    # Energy (sum over 24 hours per day)
+    pv_production_k_wh              = sum(pv_production_k_wh, na.rm = TRUE),
+    consumption_base_load_k_wh      = sum(consumption_base_load_k_wh, na.rm = TRUE),
+    consumption_heat_pump_k_wh      = sum(consumption_heat_pump_k_wh, na.rm = TRUE),
+    consumption_ev_charging_k_wh    = sum(consumption_ev_charging_k_wh, na.rm = TRUE),
+    consumption_cooking_lighting_etc_k_wh = sum(consumption_cooking_lighting_etc_k_wh, na.rm = TRUE),
+    grid_feed_in_pv_k_wh            = sum(grid_feed_in_pv_k_wh, na.rm = TRUE),
+    grid_import_total_k_wh          = sum(grid_import_total_k_wh, na.rm = TRUE),
+    self_consumption_pv_k_wh        = sum(self_consumption_pv_k_wh, na.rm = TRUE),
+
+    # Events (any disturbances or spikes during the day)
+    is_grid_disturbance             = max(is_grid_disturbance, na.rm = TRUE),
+    is_price_spike_response         = max(is_price_spike_response, na.rm = TRUE),
+
+    # Weather (daily averages)
+    temperature_daily_C             = mean(`temperature_hourly/°C`, na.rm = TRUE),
+    humidity_pct                    = mean(`humidity/%`, na.rm = TRUE),
+    wind_speed_ms                   = mean(`wind_speed/m/s`, na.rm = TRUE)
+  ) %>%
+  ungroup()
+
+```
+
+
+```{r}
+# Save the final merged dataset to a CSV file
+readr::write_csv(final_df_d, "final_df_d.csv")
+```
+
+
+
+```{r}
+library(ggplot2)
+
+plot_vars <- c(
+  "consumption_base_load_k_wh",
+  "consumption_heat_pump_k_wh",
+  "consumption_ev_charging_k_wh",
+  "consumption_cooking_lighting_etc_k_wh",
+  "grid_feed_in_pv_k_wh",
+  "grid_import_total_k_wh",
+  "self_consumption_pv_k_wh",
+  "pv_production_k_wh",
+  "temperature_daily/°C",
+  "humidity/%",
+  "wind_speed/m/s"
+)
+
+# Create a named list of plots
+plots <- lapply(plot_vars, function(var) {
+  ggplot(final_df, aes(x = timestamp, y = .data[[var]])) +
+    geom_line() +
+    labs(title = var, x = "Timestamp", y = "Value") +
+    theme_minimal()
+})
+
+# Example: show first plot
+plots[[1]]
+
+
+```
+```{r, fig.width = 8, fig.height = 20  }
+library(ggplot2)
+library(patchwork)
+
+plot_vars <- c(
+  "consumption_base_load_k_wh",
+  "consumption_heat_pump_k_wh",
+  "consumption_ev_charging_k_wh",
+  "consumption_cooking_lighting_etc_k_wh",
+  "grid_feed_in_pv_k_wh",
+  "grid_import_total_k_wh",
+  "self_consumption_pv_k_wh",
+  "pv_production_k_wh",
+  "temperature_hourly/°C",
+  "humidity/%",
+  "wind_speed/m/s"
+)
+
+plots <- lapply(plot_vars, function(var) {
+  ggplot(final_df, aes(x = timestamp, y = .data[[var]])) +
+    geom_line() +
+    labs(title = var, x = "Time", y = "Value") +
+    theme_minimal()
+})
+
+# Arrange in a grid (adjust ncol as you like)
+combined <- wrap_plots(plots, ncol = 1)
+combined
+
+# (optional) save
+# ggsave("all_timeseries_grid.png", combined, width = 14, height = 12, dpi = 180)
+
+```
+
 
 # Modeling
 
