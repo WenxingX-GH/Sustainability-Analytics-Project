@@ -38,45 +38,74 @@ library(janitor)
 
 # Introduction
 
-The transition to renewable energy sources presents both opportunities and 
-challenges for individual homeowners. While technologies like photovoltaic (PV) 
-systems and electric vehicles (EVs) are becoming more common, optimizing their 
-use requires a deeper understanding of energy consumption patterns. 
-The intermittent nature of solar energy, heavily influenced by local weather 
-conditions, adds a layer of complexity to managing home energy efficiently.
+Markdown
 
-This analysis addresses this challenge by examining historical energy data 
-from a residential building equipped with a PV system and an EV. By correlating
-the household's energy consumption data with local weather patterns, we seek to 
-identify key relationships and trends. The ultimate goal is to develop 
-data-driven recommendations that provide the homeowner with simple, 
-effective advice to increase their self-consumption of clean energy. 
-This will help in reducing energy costs and contributing to a more 
-sustainable energy system.
+---
+title: "Report for Sustainability Analytics: Energy Recommendations based on weather data"
+author: "Barbara Maier, Wenxing Xu, Güney Usta"
+date: "2025-09-05"
+output: 
+  html_document: 
+    toc: true
+    toc_float: true
+  pdf_document: default
+  word_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = FALSE,      # Show R code in the output document
+  warning = FALSE,   # Suppress warnings in the output document
+  message = FALSE,   # Suppress messages in the output document
+  fig.width = 8,     # Width of figures in inches    
+  fig.height = 5     # Height of figures in inches
+)
+Code-Snippet
+
+# Load necessary packages
+library(dplyr)      # Data manipulation
+library(ggplot2)    # Data visualization  
+library(readr)      # Reading CSV files
+library(tidyverse)
+library(lubridate)
+library(janitor)
+library(knitr)
+
+# Introduction
+
+Homeowners today face a complex energy landscape. With the rise of renewable technologies like photovoltaic (PV) solar panels and electric vehicles (EVs), there is a great opportunity to use cleaner energy. However, the energy produced by solar panels is not constant; it depends heavily on the weather. This makes it difficult for homeowners to efficiently use the energy they produce themselves. Often, solar energy is generated when the house needs little power, and the surplus is sold to the grid for a low price. Later, when energy is needed, it must be bought back from the grid at a higher price.
+
+This project addresses a central question: 
+
+In what way can we inform homeowners about their energy consumption so that they make better decisions about their energy behaviours? 
+
+By analyzing the historical energy data from a home in Aarau with a PV system and an EV, and combining it with local weather data, we aim to uncover key patterns. The final goal is to create a set of simple, data-driven recommendations and a Tableau dashboard. This will empower the homeowner to increase their self-consumption of solar energy, which helps to lower electricity bills and supports a more sustainable energy grid.
+
+Research Questions and Hypotheses
+To guide our analysis, we have formulated a primary research question and a set of testable hypotheses:
+
+# Primary Research Question: **How can we leverage historical energy and weather data to provide actionable recommendations to a homeowner that increase their solar self-consumption and reduce grid dependency?**
+
+*Hypotheses:*
+
+1. H1: There is a strong negative correlation between daily average temperature and the energy consumption of the heat pump. As temperatures decrease, heat pump usage will significantly increase.
+
+2. H2: EV charging events represent the largest single component of flexible household electricity demand, offering the most significant opportunity for load shifting to align with PV production.
+
+3. H3: A significant portion of PV-generated energy is fed into the grid during summer midday peaks, while significant grid import occurs during winter evenings. This highlights a seasonal and daily mismatch between generation and consumption.
 
 # Datasets & Datasources
 
 This analysis utilizes two primary data sources:
 
-1. AEW Energie AG: Provides detailed energy production and consumption data 
-for the household.
-  - PV_Production_kWh: Photovoltaic energy production.
-  - Consumption_Base_Load_kWh: Base load energy consumption.
-  - Consumption_Heat_Pump_kWh: Energy consumed by the heat pump.
-  - Consumption_EV_Charging_kWh: Energy used for charging an electric vehicle.
-  - Consumption_Cooking_Lighting_etc_kWh: Energy for cooking, lighting, and 
-  other appliances.
-  - Consumption_Total_kWh: Total household energy consumption.
-  - Self_Consumption_PV_kWh: Portion of PV production consumed directly.
-  - Grid_Feed_In_PV_kWh: Surplus PV energy fed back into the grid.
-  - Grid_Import_Total_kWh: Total energy imported from the grid.
-
-2. MeteoSwiss: Provides local weather data.
-- wind_speed_10m_mean: Mean wind speed at 10 meters.
-- temperature_2m_mean: Mean air temperature at 2 meters.
-- relative_humidity_2m_mean_from_hourly: Mean relative humidity at 2 meters.
-
+| Dataset Name | Source | Strategic Purpose | Key Variables Used |
+|:---|:---|:---|:---|
+| `household_energy_profile` | **AEW Energie AG** | Quantifies the household's energy production and consumption patterns across different categories. | `PV_Production_kWh`, `Consumption_Heat_Pump_kWh`, `Consumption_EV_Charging_kWh`, `Grid_Feed_In_PV_kWh`, `Grid_Import_Total_kWh` |
+| `historical_weather_data` | **MeteoSwiss** | Provides local weather context to understand its impact on energy production and consumption. | `temperature_2m_mean`, `relative_humidity_2m_mean`, `wind_speed_10m_mean` |
 # Data wrangling
+
+
+
 
 ## Function to load and process the AEW energy data
 
@@ -316,9 +345,119 @@ combined
 
 # Modeling
 
-TODO: Add modeling steps here.
+## Finding the optimal battery size
+
+The plot below shows the total grid import over the entire period for each simulated battery size.
+
+# Plot the results
+ggplot(battery_results, aes(x = capacity, y = imports)) +
+  geom_line() +
+  geom_point() +
+  labs(
+    title = "Simulated Grid Import vs. Battery Capacity",
+    x = "Battery Capacity (kWh)",
+    y = "Total Grid Import (kWh)"
+  ) +
+  scale_x_continuous(breaks = battery_sizes) +
+  theme_minimal()
+
+kable(battery_results, caption = "Table 3: Simulated Grid Imports for Different Battery Capacities")
+
+The plot shows that as the battery capacity increases, the total grid import decreases. However, the reduction in imports becomes less significant with each increase in capacity. This demonstrates the law of diminishing returns. Based on this curve, we can identify an "elbow point"—a point where the benefit of adding more capacity starts to level off. This point represents a cost-effective battery size for the homeowner. For this particular dataset, a battery in the range of 8-12 kWh appears to offer a good balance, capturing a significant portion of the potential savings without being excessively large.
+
+# Time Series Plots of Energy and Weather Data
+# Reshape data for faceting
+plot_data <- final_df_d %>%
+  select(date, pv_production_k_wh, consumption_heat_pump_k_wh, consumption_ev_charging_k_wh, grid_import_total_k_wh, temperature_daily_c) %>%
+  pivot_longer(-date, names_to = "metric", values_to = "value")
+
+# Create the faceted plot
+ggplot(plot_data, aes(x = date, y = value)) +
+  geom_line(aes(color = metric), alpha = 0.8) +
+  facet_wrap(~ metric, scales = "free_y", ncol = 1) +
+  labs(
+    title = "Daily Energy and Weather Metrics Over Time",
+    x = "Date",
+    y = "Value"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+# Scatter Plot: Temperature vs. Heat Pump Consumption
+
+ggplot(final_df_d, aes(x = temperature_daily_c, y = consumption_heat_pump_k_wh)) +
+  geom_point(alpha = 0.5) +
+  geom_smooth(method = "lm", col = "red") +
+  labs(
+    title = "Daily Temperature vs. Heat Pump Consumption",
+    x = "Average Daily Temperature (°C)",
+    y = "Daily Heat Pump Consumption (kWh)"
+  ) +
+  theme_minimal()
+```
+
+***
+
+# Calculating Optimal Battery Capacity
+
+A key recommendation for the homeowner could be the installation of a home battery to store excess solar energy. To make this recommendation concrete, we need to estimate an optimal battery size. A battery that is too small will not capture enough surplus energy, while one that is too large will be an unnecessary expense.
+
+### Methodology
+
+We will simulate the performance of different battery sizes using the historical hourly data. The simulation will operate on a simple principle for each hour of the day:
+
+1.  **Calculate Net Energy:** `Net Energy = PV Production - Total Consumption`
+2.  **Charging:** If `Net Energy` is positive (surplus) and the battery is not full, charge the battery with the surplus energy, up to its maximum capacity. Any remaining surplus is fed into the grid.
+3.  **Discharging:** If `Net Energy` is negative (deficit) and the battery has charge, discharge the battery to cover the deficit. If the battery is empty, the remaining deficit is imported from the grid.
+
+By running this simulation for a range of battery capacities (e.g., from 2 kWh to 20 kWh), we can calculate the total grid import for each scenario. The "optimal" battery size is the one that offers the best balance between reducing grid imports and cost-effectiveness—often visualized as the "elbow point" where adding more capacity yields diminishing returns.
+
+### R Code for Battery Simulation
+
+The following function simulates the daily operation of a battery of a given size.
+
+```{r battery-simulation, echo=TRUE}
+# This function simulates the performance of a battery of a given size.
+simulate_battery <- function(data, battery_capacity) {
+  battery_level <- 0
+  grid_import <- 0
+  
+  # Calculate net energy for each hour
+  data <- data %>%
+    mutate(net_energy = pv_production_k_wh - (consumption_base_load_k_wh + consumption_heat_pump_k_wh + consumption_ev_charging_k_wh + consumption_cooking_lighting_etc_k_wh))
+
+  # Loop through each hour of the data
+  for (i in 1:nrow(data)) {
+    net <- data$net_energy[i]
+    
+    if (net > 0) { # Surplus energy
+      charge_amount <- min(net, battery_capacity - battery_level)
+      battery_level <- battery_level + charge_amount
+    } else { # Energy deficit
+      discharge_amount <- min(abs(net), battery_level)
+      battery_level <- battery_level - discharge_amount
+      grid_import <- grid_import + (abs(net) - discharge_amount)
+    }
+  }
+  
+  return(grid_import)
+}
+
+# Define a range of battery sizes to test
+battery_sizes <- seq(2, 20, by = 2)
+total_imports <- sapply(battery_sizes, function(size) {
+  simulate_battery(final_df_h, size)
+})
+
+# Create a dataframe of the results
+battery_results <- data.frame(
+  capacity = battery_sizes,
+  imports = total_imports
+)
+
 
 # Results and Discussion
 
 TODO: Add results and discussion here.
+
 
