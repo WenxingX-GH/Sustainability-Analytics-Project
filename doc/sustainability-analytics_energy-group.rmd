@@ -1,11 +1,9 @@
-
 ---
-title: ""Report for Sustainability Analytics: Energy Recommendations 
-based on weather data"
+title: "Sustainability Analytics: Energy & Weather Data Report"
 author: "Barbara Maier, Wenxing Xu, Güney Usta"
-date: "2025-09-05"
-output: 
-  html_document: 
+date: "2025-09-18"
+output:
+  html_document:
     toc: true
     toc_float: true
   pdf_document: default
@@ -13,134 +11,81 @@ output:
 ---
 
 ```{r setup, include=FALSE}
+# This chunk sets global options for the entire document.
+# include=FALSE hides this chunk from the final rendered report.
 knitr::opts_chunk$set(
-  echo = FALSE,       # Show R code in the output document
-  warning = FALSE,  # Suppress warnings in the output document
-  message = FALSE,  # Suppress messages in the output document
-  fig.width = 8,    # Width of figures in inches    
-  fig.height = 5    # Height of figures in inches
-  )
+  echo = TRUE,       # Display the R code in the output document
+  warning = FALSE,   # Suppress warnings
+  message = FALSE,   # Suppress messages
+  fig.width = 10,    # Default width for figures in inches    
+  fig.height = 6     # Default height for figures in inches
+)
 ```
 
-------------------------------------------------------------------------
-
-```{r load-packages}
-# Load necessary packages
-library(dplyr)    # Data manipulation
-library(ggplot2)  # Data visualization  
-library(readr)    # Reading CSV files
-library(tidyverse)
-library(lubridate)
-library(janitor)
-```
-
-------------------------------------------------------------------------
-
-# Introduction
-
-The transition to renewable energy sources presents both opportunities and 
-challenges for individual homeowners. While technologies like photovoltaic (PV) 
-systems and electric vehicles (EVs) are becoming more common, optimizing their 
-use requires a deeper understanding of energy consumption patterns. 
-The intermittent nature of solar energy, heavily influenced by local weather 
-conditions, adds a layer of complexity to managing home energy efficiently.
-
-This analysis addresses this challenge by examining historical energy data 
-from a residential building equipped with a PV system and an EV. By correlating
-the household's energy consumption data with local weather patterns, we seek to 
-identify key relationships and trends. The ultimate goal is to develop 
-data-driven recommendations that provide the homeowner with simple, 
-effective advice to increase their self-consumption of clean energy. 
-This will help in reducing energy costs and contributing to a more 
-sustainable energy system.
-
-# Datasets & Datasources
-
-This analysis utilizes two primary data sources:
-
-1. AEW Energie AG: Provides detailed energy production and consumption data 
-for the household.
-  - PV_Production_kWh: Photovoltaic energy production.
-  - Consumption_Base_Load_kWh: Base load energy consumption.
-  - Consumption_Heat_Pump_kWh: Energy consumed by the heat pump.
-  - Consumption_EV_Charging_kWh: Energy used for charging an electric vehicle.
-  - Consumption_Cooking_Lighting_etc_kWh: Energy for cooking, lighting, and 
-  other appliances.
-  - Consumption_Total_kWh: Total household energy consumption.
-  - Self_Consumption_PV_kWh: Portion of PV production consumed directly.
-  - Grid_Feed_In_PV_kWh: Surplus PV energy fed back into the grid.
-  - Grid_Import_Total_kWh: Total energy imported from the grid.
-
-2. MeteoSwiss: Provides local weather data.
-- wind_speed_10m_mean: Mean wind speed at 10 meters.
-- temperature_2m_mean: Mean air temperature at 2 meters.
-- relative_humidity_2m_mean_from_hourly: Mean relative humidity at 2 meters.
-
-# Data wrangling
-
-## Function to load and process the AEW energy data
-
-```{r}
-# ENERGY (hourly aggregation so it aligns with weather)
-load_and_process_energy_data <- function(file_path, tz_out = "UTC") {
-  read_csv(file_path, show_col_types = FALSE, guess_max = 2e5) %>%
-    clean_names() %>%                        # timestamp, metric, value
-    rename(ts_raw = timestamp) %>%
-    mutate(
-      timestamp = parse_date_time(ts_raw,
-                                  orders = c("ymd HMS","ymd HM","dmy HMS","dmy HM"),
-                                  tz = tz_out),
-      value = suppressWarnings(as.numeric(value))
-    ) %>%
-    filter(!is.na(timestamp)) %>%
-    group_by(timestamp, metric) %>%
-    summarise(value = mean(value, na.rm = TRUE), .groups = "drop") %>%
-    pivot_wider(names_from = metric, values_from = value) %>%
-    clean_names() %>%
-    mutate(timestamp = floor_date(timestamp, "hour"),
-           date = as_date(timestamp)) %>%
-    arrange(timestamp)
-}
-```
-
-```{r}
+```{r libraries}
+# This chunk loads all the necessary R packages for the analysis.
 library(dplyr)
 library(readr)
 library(tidyr)
 library(lubridate)
 library(janitor)
 library(stringr)
+library(ggplot2)
+library(patchwork) # Used for arranging multiple plots
+```
 
+# Introduction
+
+The transition to renewable energy sources presents both opportunities and challenges for homeowners. Optimizing the use of technologies like photovoltaic (PV) systems and electric vehicles (EVs) requires a deep understanding of energy consumption patterns, which are heavily influenced by local weather.
+
+This analysis examines historical energy and weather data from a residence in Baden, Switzerland. By correlating the household's energy consumption with local weather patterns, we aim to develop data-driven recommendations to help the homeowner increase their self-consumption of clean energy, reduce costs, and contribute to a more sustainable energy system.
+
+# Datasets & Datasources
+
+This analysis utilizes two primary data sources: detailed energy data for the household and local weather data. The table below provides a comprehensive overview of each source.
+
+> **Licensing note:** *Von Google lizenziert* where applicable; MeteoSwiss data is provided under the Swiss OGD framework.
+
+| Dataset | Provider | Description | Key variables used |
+|---|---|---|---|
+| **Household Energy Profile** | AEW Energie AG | High‑resolution energy metrics for a residential property (Wynemattestrasse 17) over ~5 years: generation, consumption, and grid interaction. | `pv_production_k_wh` – PV energy production (kWh)<br>`consumption_base_load_k_wh` – Base load (e.g., refrigerator, standby)<br>`consumption_heat_pump_k_wh` – Heat pump consumption<br>`consumption_ev_charging_k_wh` – EV charging consumption<br>`grid_feed_in_pv_k_wh` – Surplus PV fed into grid<br>`grid_import_total_k_wh` – Total grid import |
+| **Historical Weather Data** | MeteoSwiss | Hourly weather observations (OGD) used to correlate energy patterns with environmental conditions. | `temperature_c` – Mean air temperature (°C)<br>`humidity_pct` – Mean relative humidity (%)<br>`wind_speed_ms` – Mean wind speed (m/s) |
+
+# Data Wrangling
+
+This section includes the functions and steps to load, clean, process, and merge the datasets.
+
+## Function to Load and Process Energy Data
+
+This function is designed to handle the specific format of the AEW energy data. It correctly parses timestamps (including the "24:00" format, which is treated as the start of the next day), cleans column names, and aggregates the data to an hourly resolution.
+
+```{r functions-energy}
 load_and_process_energy_data <- function(file_path,
                                          tz_out = "UTC",
                                          aggregate_to_hour = TRUE,
                                          complete_hours = TRUE) {
 
   energy_long <- read_csv(file_path, show_col_types = FALSE, guess_max = 2e5) %>%
-    clean_names() %>%                                   # -> timestamp, metric, value
+    clean_names() %>%
     rename(ts_raw = timestamp)
 
   energy_wide <- energy_long %>%
     mutate(
-      # detect "... 24:00" (or "T24:00(:00)")
+      # Detect and handle "... 24:00" timestamps
       is_24 = str_detect(ts_raw, "(\\s|T)24:00(:00)?$"),
-      # replace 24:00 with 00:00 for parsing
       ts_norm = str_replace(ts_raw, "(\\s|T)24:00(:00)?$", " 00:00:00"),
-      # parse; allow several date orders
       timestamp = parse_date_time(ts_norm,
                                   orders = c("ymd HMS","ymd HM","dmy HMS","dmy HM"),
                                   tz = tz_out),
-      # shift those that were 24:00 by +1 day
       timestamp = if_else(is_24, timestamp + days(1), timestamp),
       value = suppressWarnings(as.numeric(value))
     ) %>%
     filter(!is.na(timestamp)) %>%
-    group_by(timestamp, metric) %>%                     # collapse dup metric rows
+    group_by(timestamp, metric) %>%
     summarise(value = mean(value, na.rm = TRUE), .groups = "drop") %>%
     pivot_wider(names_from = metric, values_from = value) %>%
     clean_names()
 
-  # bucket to the hour (keeps 00:00 that came from 24:00 rows)
   if (aggregate_to_hour) {
     energy_wide <- energy_wide %>% mutate(timestamp = floor_date(timestamp, "hour"))
     kwh_cols  <- grep("_k_wh$", names(energy_wide), value = TRUE)
@@ -155,7 +100,6 @@ load_and_process_energy_data <- function(file_path,
       )
   }
 
-  # ensure a continuous hourly index (optional)
   if (complete_hours) {
     energy_wide <- energy_wide %>%
       arrange(timestamp) %>%
@@ -168,60 +112,18 @@ load_and_process_energy_data <- function(file_path,
     arrange(timestamp) %>%
     mutate(date = as_date(timestamp))
 }
-
 ```
 
-```{r}
-energy_file <- "../data/household_energy_profile_Wynemattestrasse_17_5_years.csv"
-energy_df <- load_and_process_energy_data(energy_file)
+## Function to Load and Process MeteoSwiss Weather Data
 
-# Verify midnight exists
-table(hour(energy_df$timestamp))        # should include 0..23
-head(filter(energy_df, hour(timestamp) == 0), 3)
+This function loads the semicolon-delimited weather data. It includes a helper to robustly parse numbers that might use either a dot or a comma as a decimal mark.
 
-```
-
-
-```{r}
-
-energy_file <- "../data/household_energy_profile_Wynemattestrasse_17_5_years.csv"
-energy_df <- read_csv(energy_file)
-head(energy_df,100) 
-
-```
-
-
-```{r}
-
-## Execute the functions to get processed data frames
-
-energy_df <- load_and_process_energy_data(energy_file)
-
-# Display the first few rows of the final merged dataset to verify
-head(energy_df, 100)
-```
-
-```{r}
-metroswiss_file_d <- "./data/ogd-smn_bus_d_historical.csv"
-metroswiss_file_h <- "./data/ogd-smn_bus_h_historical_2020-2029.csv"
-df_metroswiss_d <- read_csv(metroswiss_file_d)
-df_metroswiss_h <- read_csv(metroswiss_file_h)
-head(df_metroswiss_d,10) 
-head(df_metroswiss_h,10)
-str(df_metroswiss_d,10)
-str(df_metroswiss_h,10)
-```
-
-
-## Function to load and process the MeteoSwiss weather data
-
-```{r}
-# Helper: try both decimal marks and pick the one yielding fewer NAs
+```{r functions-weather}
+# Helper to parse numbers regardless of decimal mark
 parse_numeric_smart <- function(x) {
   x_chr <- as.character(x)
   v_dot   <- parse_number(x_chr, locale = locale(decimal_mark = ".", grouping_mark = ","))
   v_comma <- parse_number(x_chr, locale = locale(decimal_mark = ",", grouping_mark = "."))
-  # choose the parse with more non-NAs
   if (sum(!is.na(v_comma)) > sum(!is.na(v_dot))) v_comma else v_dot
 }
 
@@ -230,7 +132,6 @@ load_and_process_weather_data <- function(file_path_weatherdata,
   weather_raw <- read_delim(
     file_path_weatherdata,
     delim = ";",
-    # don't force a decimal_mark here; we'll parse columns ourselves
     show_col_types = FALSE,
     guess_max = 2e5
   ) %>%
@@ -243,31 +144,16 @@ load_and_process_weather_data <- function(file_path_weatherdata,
       wind_speed_ms = fkl010h0
     ) %>%
     mutate(
-      # STRICT DMY to avoid 2001/2031 mixups
       timestamp = parse_date_time(ts_raw, orders = c("dmy HM","dmy HMS"), tz = tz_out),
       timestamp = floor_date(timestamp, "hour"),
       date      = as_date(timestamp),
-
-      # robust numeric parsing
       temperature_c = parse_numeric_smart(temperature_c),
       humidity_pct  = parse_numeric_smart(humidity_pct),
-      wind_speed_ms = parse_numeric_smart(wind_speed_ms),
-
-      # turn obvious sentinels into NA (MeteoSwiss sometimes uses -999 / -99.9)
-      temperature_c = na_if(temperature_c, -999),
-      wind_speed_ms = na_if(wind_speed_ms, -999),
-      humidity_pct  = na_if(humidity_pct,  -999)
+      wind_speed_ms = parse_numeric_smart(wind_speed_ms)
     ) %>%
     filter(!is.na(timestamp), date >= as_date("2020-01-01"))
 
-  if (!is.null(station)) weather_raw <- filter(weather_raw, station == station)
-
-  # If humidity looks like 951 instead of 95.1, rescale
-  if (max(weather_raw$humidity_pct, na.rm = TRUE) > 100) {
-    weather_raw <- mutate(weather_raw, humidity_pct = humidity_pct / 10)
-  }
-
-  weather_hourly <- weather_raw %>%
+  weather_raw %>%
     group_by(timestamp) %>%
     summarise(
       temperature_c = mean(temperature_c, na.rm = TRUE),
@@ -277,166 +163,102 @@ load_and_process_weather_data <- function(file_path_weatherdata,
     ) %>%
     arrange(timestamp) %>%
     mutate(date = as_date(timestamp))
-
-  weather_hourly
 }
 ```
 
+## Execute Wrangling and Merging
 
-```{r}
+This chunk executes the functions defined above to load, process, and merge the two datasets into a final, hourly dataframe.
 
-## Define file paths 
-
+```{r wrangle-merge}
+# Define file paths
 energy_file  <- "../data/household_energy_profile_Wynemattestrasse_17_5_years.csv"
 weather_file <- "../data/ogd-smn_bus_h_historical_2020-2029.csv"
 
-energy_df  <- load_and_process_energy_data(energy_file, aggregate_to_hour = TRUE)
-weather_df <- load_and_process_weather_data(weather_file, station = NULL)
+# Process data using the functions
+energy_df  <- load_and_process_energy_data(energy_file)
+weather_df <- load_and_process_weather_data(weather_file)
 
+# Merge the two dataframes into one
 final_df_h <- left_join(energy_df, weather_df, by = "timestamp") %>% 
   select(-date.y) %>% 
   rename(date = date.x)
 
+# Display the first few rows of the final merged dataset
+head(final_df_h)
 
-# Display the first few rows of the final merged dataset to verify
-head(final_df_h, 100)
-
-
+# Save the final hourly dataset to a CSV file
+write_csv(final_df_h, "final_df_h.csv")
 ```
-
-
-```{r}
-range(energy_df$timestamp); range(weather_df$timestamp)
-length(intersect(unique(energy_df$timestamp), unique(weather_df$timestamp)))
-sum(is.na(final_df_h$temperature_c))
-
-```
-
-
-
-```{r}
-# Save the final merged dataset to a CSV file
-readr::write_csv(final_df_h, "final_df_h.csv")
-```
-
-```{r}
-str(final_df_h)
-```
-
 
 # Exploratory Data Analysis (EDA)
 
-TODO: Add EDA content here.
+## Daily Aggregation
 
-```{r}
+To analyze broader trends, we aggregate the hourly data into daily summaries. Energy metrics are summed, while weather metrics are averaged for each day.
 
-# compute daily means for weather + daily sums for energy
+```{r daily-aggregation}
+self_col <- "self_consumption_pv_k_wh"
 
 final_df_d <- final_df_h %>%
   group_by(date) %>%
   summarise(
     # Energy (sum over 24 hours per day)
-    pv_production_k_wh              = sum(pv_production_k_wh, na.rm = TRUE),
-    consumption_base_load_k_wh      = sum(consumption_base_load_k_wh, na.rm = TRUE),
-    consumption_heat_pump_k_wh      = sum(consumption_heat_pump_k_wh, na.rm = TRUE),
-    consumption_ev_charging_k_wh    = sum(consumption_ev_charging_k_wh, na.rm = TRUE),
-    consumption_cooking_lighting_etc_k_wh = sum(consumption_cooking_lighting_etc_k_wh, na.rm = TRUE),
-    grid_feed_in_pv_k_wh            = sum(grid_feed_in_pv_k_wh, na.rm = TRUE),
-    grid_import_total_k_wh          = sum(grid_import_total_k_wh, na.rm = TRUE),
-    self_consumption_pv_k_wh        = sum(self_consumption_pv_k_wh, na.rm = TRUE),
-
-    # Events (any disturbances or spikes during the day)
-    is_grid_disturbance             = max(is_grid_disturbance, na.rm = TRUE),
-    is_price_spike_response         = max(is_price_spike_response, na.rm = TRUE),
-
+    pv_production_k_wh = sum(pv_production_k_wh, na.rm = TRUE),
+    consumption_base_load_k_wh = sum(consumption_base_load_k_wh, na.rm = TRUE),
+    consumption_heat_pump_k_wh = sum(consumption_heat_pump_k_wh, na.rm = TRUE),
+    consumption_ev_charging_k_wh = sum(consumption_ev_charging_k_wh, na.rm = TRUE),
+    grid_feed_in_pv_k_wh = sum(grid_feed_in_pv_k_wh, na.rm = TRUE),
+    grid_import_total_k_wh = sum(grid_import_total_k_wh, na.rm = TRUE),
+    self_consumption_pv_k_wh = if (self_col %in% names(final_df_h)) sum(.data[[self_col]], na.rm = TRUE) else NA_real_,
+    
     # Weather (daily averages)
-    temperature_daily_C             = mean(`temperature_c`, na.rm = TRUE),
-    humidity_daily_pct                    = mean(`humidity_pct`, na.rm = TRUE),
-    wind_speed_daily_ms                   = mean(`wind_speed_ms`, na.rm = TRUE)
+    temperature_daily_C = mean(temperature_c, na.rm = TRUE),
+    humidity_daily_pct = mean(humidity_pct, na.rm = TRUE),
+    wind_speed_daily_ms = mean(wind_speed_ms, na.rm = TRUE)
   ) %>%
   ungroup()
 
-head(final_df_d,10)
+# Display the first few rows of the daily aggregated data
+head(final_df_d)
+
+# Save the daily aggregated data to a CSV file
+write_csv(final_df_d, "final_df_d.csv")
 ```
 
+## Time Series Visualization
 
-```{r}
-# Save the final merged dataset to a CSV file
-readr::write_csv(final_df_d, "final_df_d.csv")
-```
+The following plots show the behavior of key energy and weather variables over the entire time period. This is useful for identifying seasonality, trends, and potential anomalies.
 
-
-
-```{r}
-library(ggplot2)
-
+```{r time-series-plots, fig.height=12}
+# Define the list of variables to plot
 plot_vars <- c(
-  "consumption_base_load_k_wh",
-  "consumption_heat_pump_k_wh",
-  "consumption_ev_charging_k_wh",
-  "consumption_cooking_lighting_etc_k_wh",
-  "grid_feed_in_pv_k_wh",
-  "grid_import_total_k_wh",
-  "self_consumption_pv_k_wh",
-  "pv_production_k_wh",
-  "temperature_c",
-  "humidity_pct",
-  "wind_speed_ms"
+  "consumption_base_load_k_wh", "consumption_heat_pump_k_wh",
+  "consumption_ev_charging_k_wh", "grid_feed_in_pv_k_wh",
+  "grid_import_total_k_wh", "self_consumption_pv_k_wh",
+  "pv_production_k_wh", "temperature_c", "humidity_pct", "wind_speed_ms"
 )
 
-# Create a named list of plots
+# Create a list of plots
 plots <- lapply(plot_vars, function(var) {
+  if (!var %in% names(final_df_h)) return(NULL)
   ggplot(final_df_h, aes(x = timestamp, y = .data[[var]])) +
-    geom_line() +
-    labs(title = var, x = "Timestamp", y = "Value") +
-    theme_minimal()
-})
-
-# Example: show first plot
-plots[[1]]
-
-
-```
-```{r, fig.width = 8, fig.height = 20  }
-library(ggplot2)
-library(patchwork)
-
-plot_vars <- c(
-  "consumption_base_load_k_wh",
-  "consumption_heat_pump_k_wh",
-  "consumption_ev_charging_k_wh",
-  "consumption_cooking_lighting_etc_k_wh",
-  "grid_feed_in_pv_k_wh",
-  "grid_import_total_k_wh",
-  "self_consumption_pv_k_wh",
-  "pv_production_k_wh",
-  "temperature_c",
-  "humidity_pct",
-  "wind_speed_ms"
-)
-
-plots <- lapply(plot_vars, function(var) {
-  ggplot(final_df_h, aes(x = timestamp, y = .data[[var]])) +
-    geom_line() +
+    geom_line(linewidth = 0.5) +
     labs(title = var, x = "Time", y = "Value") +
     theme_minimal()
 })
 
-# Arrange in a grid (adjust ncol as you like)
-combined <- wrap_plots(plots, ncol = 1)
-combined
+# Remove NULLs (in case some variables are absent)
+plots <- Filter(Negate(is.null), plots)
 
-# (optional) save
-# ggsave("all_timeseries_grid.png", combined, width = 14, height = 12, dpi = 180)
-
+# Arrange all plots in a grid for easier comparison
+wrap_plots(plots, ncol = 2)
 ```
-
 
 # Modeling
 
-TODO: Add modeling steps here.
+*TODO: Add modeling steps here.*
 
 # Results and Discussion
 
-TODO: Add results and discussion here.
-
+*TODO: Add results and discussion here.*
