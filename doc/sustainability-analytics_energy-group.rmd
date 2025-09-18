@@ -38,105 +38,153 @@ library(janitor)
 
 # Introduction
 
-Markdown
+The transition to renewable energy sources presents both opportunities and 
+challenges for individual homeowners. While technologies like photovoltaic (PV) 
+systems and electric vehicles (EVs) are becoming more common, optimizing their 
+use requires a deeper understanding of energy consumption patterns. 
+The intermittent nature of solar energy, heavily influenced by local weather 
+conditions, adds a layer of complexity to managing home energy efficiently.
 
----
-title: "Report for Sustainability Analytics: Energy Recommendations based on weather data"
-author: "Barbara Maier, Wenxing Xu, Güney Usta"
-date: "2025-09-05"
-output: 
-  html_document: 
-    toc: true
-    toc_float: true
-  pdf_document: default
-  word_document: default
----
-
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(
-  echo = FALSE,      # Show R code in the output document
-  warning = FALSE,   # Suppress warnings in the output document
-  message = FALSE,   # Suppress messages in the output document
-  fig.width = 8,     # Width of figures in inches    
-  fig.height = 5     # Height of figures in inches
-)
-Code-Snippet
-
-# Load necessary packages
-library(dplyr)      # Data manipulation
-library(ggplot2)    # Data visualization  
-library(readr)      # Reading CSV files
-library(tidyverse)
-library(lubridate)
-library(janitor)
-library(knitr)
-
-# Introduction
-
-Homeowners today face a complex energy landscape. With the rise of renewable technologies like photovoltaic (PV) solar panels and electric vehicles (EVs), there is a great opportunity to use cleaner energy. However, the energy produced by solar panels is not constant; it depends heavily on the weather. This makes it difficult for homeowners to efficiently use the energy they produce themselves. Often, solar energy is generated when the house needs little power, and the surplus is sold to the grid for a low price. Later, when energy is needed, it must be bought back from the grid at a higher price.
-
-This project addresses a central question: 
-
-In what way can we inform homeowners about their energy consumption so that they make better decisions about their energy behaviours? 
-
-By analyzing the historical energy data from a home in Aarau with a PV system and an EV, and combining it with local weather data, we aim to uncover key patterns. The final goal is to create a set of simple, data-driven recommendations and a Tableau dashboard. This will empower the homeowner to increase their self-consumption of solar energy, which helps to lower electricity bills and supports a more sustainable energy grid.
-
-Research Questions and Hypotheses
-To guide our analysis, we have formulated a primary research question and a set of testable hypotheses:
-
-# Primary Research Question: **How can we leverage historical energy and weather data to provide actionable recommendations to a homeowner that increase their solar self-consumption and reduce grid dependency?**
-
-*Hypotheses:*
-
-1. H1: There is a strong negative correlation between daily average temperature and the energy consumption of the heat pump. As temperatures decrease, heat pump usage will significantly increase.
-
-2. H2: EV charging events represent the largest single component of flexible household electricity demand, offering the most significant opportunity for load shifting to align with PV production.
-
-3. H3: A significant portion of PV-generated energy is fed into the grid during summer midday peaks, while significant grid import occurs during winter evenings. This highlights a seasonal and daily mismatch between generation and consumption.
+This analysis addresses this challenge by examining historical energy data 
+from a residential building equipped with a PV system and an EV. By correlating
+the household's energy consumption data with local weather patterns, we seek to 
+identify key relationships and trends. The ultimate goal is to develop 
+data-driven recommendations that provide the homeowner with simple, 
+effective advice to increase their self-consumption of clean energy. 
+This will help in reducing energy costs and contributing to a more 
+sustainable energy system.
 
 # Datasets & Datasources
 
 This analysis utilizes two primary data sources:
 
-| Dataset Name | Source | Strategic Purpose | Key Variables Used |
-|:---|:---|:---|:---|
-| `household_energy_profile` | **AEW Energie AG** | Quantifies the household's energy production and consumption patterns across different categories. | `PV_Production_kWh`, `Consumption_Heat_Pump_kWh`, `Consumption_EV_Charging_kWh`, `Grid_Feed_In_PV_kWh`, `Grid_Import_Total_kWh` |
-| `historical_weather_data` | **MeteoSwiss** | Provides local weather context to understand its impact on energy production and consumption. | `temperature_2m_mean`, `relative_humidity_2m_mean`, `wind_speed_10m_mean` |
+1. AEW Energie AG: Provides detailed energy production and consumption data 
+for the household.
+  - PV_Production_kWh: Photovoltaic energy production.
+  - Consumption_Base_Load_kWh: Base load energy consumption.
+  - Consumption_Heat_Pump_kWh: Energy consumed by the heat pump.
+  - Consumption_EV_Charging_kWh: Energy used for charging an electric vehicle.
+  - Consumption_Cooking_Lighting_etc_kWh: Energy for cooking, lighting, and 
+  other appliances.
+  - Consumption_Total_kWh: Total household energy consumption.
+  - Self_Consumption_PV_kWh: Portion of PV production consumed directly.
+  - Grid_Feed_In_PV_kWh: Surplus PV energy fed back into the grid.
+  - Grid_Import_Total_kWh: Total energy imported from the grid.
+
+2. MeteoSwiss: Provides local weather data.
+- wind_speed_10m_mean: Mean wind speed at 10 meters.
+- temperature_2m_mean: Mean air temperature at 2 meters.
+- relative_humidity_2m_mean_from_hourly: Mean relative humidity at 2 meters.
+
 # Data wrangling
-
-
-
 
 ## Function to load and process the AEW energy data
 
 ```{r}
-load_and_process_energy_data <- function(file_path) {
-  # Read the raw data which is in a long format
-  energy_long <- read_csv(file_path)
-  
-  # Pivot the data from long to wide format
-  # This creates a separate column for each unique "Metric"
-  energy_wide <- energy_long %>%
-    pivot_wider(
-      names_from  = Metric,
-      values_from = Value,
-      values_fn   = ~ mean(.x, na.rm = TRUE),   # aggregate duplicates
-      values_fill = NA_real_
-    ) %>%
-    janitor::clean_names() %>%
+# ENERGY (hourly aggregation so it aligns with weather)
+load_and_process_energy_data <- function(file_path, tz_out = "UTC") {
+  read_csv(file_path, show_col_types = FALSE, guess_max = 2e5) %>%
+    clean_names() %>%                        # timestamp, metric, value
+    rename(ts_raw = timestamp) %>%
     mutate(
-      timestamp = as_datetime(timestamp),
-      date = as_date(timestamp)
-    )
-
-  return(energy_wide)
+      timestamp = parse_date_time(ts_raw,
+                                  orders = c("ymd HMS","ymd HM","dmy HMS","dmy HM"),
+                                  tz = tz_out),
+      value = suppressWarnings(as.numeric(value))
+    ) %>%
+    filter(!is.na(timestamp)) %>%
+    group_by(timestamp, metric) %>%
+    summarise(value = mean(value, na.rm = TRUE), .groups = "drop") %>%
+    pivot_wider(names_from = metric, values_from = value) %>%
+    clean_names() %>%
+    mutate(timestamp = floor_date(timestamp, "hour"),
+           date = as_date(timestamp)) %>%
+    arrange(timestamp)
 }
+```
+
+```{r}
+library(dplyr)
+library(readr)
+library(tidyr)
+library(lubridate)
+library(janitor)
+library(stringr)
+
+load_and_process_energy_data <- function(file_path,
+                                         tz_out = "UTC",
+                                         aggregate_to_hour = TRUE,
+                                         complete_hours = TRUE) {
+
+  energy_long <- read_csv(file_path, show_col_types = FALSE, guess_max = 2e5) %>%
+    clean_names() %>%                                   # -> timestamp, metric, value
+    rename(ts_raw = timestamp)
+
+  energy_wide <- energy_long %>%
+    mutate(
+      # detect "... 24:00" (or "T24:00(:00)")
+      is_24 = str_detect(ts_raw, "(\\s|T)24:00(:00)?$"),
+      # replace 24:00 with 00:00 for parsing
+      ts_norm = str_replace(ts_raw, "(\\s|T)24:00(:00)?$", " 00:00:00"),
+      # parse; allow several date orders
+      timestamp = parse_date_time(ts_norm,
+                                  orders = c("ymd HMS","ymd HM","dmy HMS","dmy HM"),
+                                  tz = tz_out),
+      # shift those that were 24:00 by +1 day
+      timestamp = if_else(is_24, timestamp + days(1), timestamp),
+      value = suppressWarnings(as.numeric(value))
+    ) %>%
+    filter(!is.na(timestamp)) %>%
+    group_by(timestamp, metric) %>%                     # collapse dup metric rows
+    summarise(value = mean(value, na.rm = TRUE), .groups = "drop") %>%
+    pivot_wider(names_from = metric, values_from = value) %>%
+    clean_names()
+
+  # bucket to the hour (keeps 00:00 that came from 24:00 rows)
+  if (aggregate_to_hour) {
+    energy_wide <- energy_wide %>% mutate(timestamp = floor_date(timestamp, "hour"))
+    kwh_cols  <- grep("_k_wh$", names(energy_wide), value = TRUE)
+    other_num <- setdiff(names(energy_wide)[sapply(energy_wide, is.numeric)], kwh_cols)
+
+    energy_wide <- energy_wide %>%
+      group_by(timestamp) %>%
+      summarise(
+        across(all_of(kwh_cols),  ~ sum(.x, na.rm = TRUE)),
+        across(all_of(other_num), ~ mean(.x, na.rm = TRUE)),
+        .groups = "drop"
+      )
+  }
+
+  # ensure a continuous hourly index (optional)
+  if (complete_hours) {
+    energy_wide <- energy_wide %>%
+      arrange(timestamp) %>%
+      complete(timestamp = seq(from = floor_date(min(timestamp), "hour"),
+                               to   = floor_date(max(timestamp), "hour"),
+                               by   = "hour"))
+  }
+
+  energy_wide %>%
+    arrange(timestamp) %>%
+    mutate(date = as_date(timestamp))
+}
+
+```
+
+```{r}
+energy_file <- "../data/household_energy_profile_Wynemattestrasse_17_5_years.csv"
+energy_df <- load_and_process_energy_data(energy_file)
+
+# Verify midnight exists
+table(hour(energy_df$timestamp))        # should include 0..23
+head(filter(energy_df, hour(timestamp) == 0), 3)
+
 ```
 
 
 ```{r}
 
-energy_file <- "./data/household_energy_profile_Wynemattestrasse_17_5_years.csv"
+energy_file <- "../data/household_energy_profile_Wynemattestrasse_17_5_years.csv"
 energy_df <- read_csv(energy_file)
 head(energy_df,100) 
 
@@ -168,63 +216,103 @@ str(df_metroswiss_h,10)
 ## Function to load and process the MeteoSwiss weather data
 
 ```{r}
-  # @WX: file for weather data? 
-  
-load_and_process_weather_data <- function(file_path_weatherdata) {
-  # Read the raw weather data
-  weather_raw <- read_delim(file_path_weatherdata, delim = ";")
-  
-  # Clean up the weather data
-  weather_clean <- weather_raw %>%
-    # Select only the relevant columns
-    select(station_abbr, 
-           reference_timestamp, 
-           tre200h0,    # daily temperature
-           ure200h0,    # humidity
-           fkl010h0     # wind speed
-           ) %>%
-    # Rename columns for clarity and consistency
-    rename(
-      station = station_abbr,
-      timestamp_str = reference_timestamp,
-      `temperature_hourly/°C` = tre200h0,
-      `humidity/%` = ure200h0,
-      `wind_speed/m/s` = fkl010h0
-    ) %>%
-    # Convert the timestamp string to actual date objects
-    mutate(date = dmy_hm(timestamp_str) %>% as_date()) %>%
-    # Filter for the relevant date range (2020 onwards)
-    filter(date >= as_date("2020-01-01"))
-  
-  return(weather_clean)
+# Helper: try both decimal marks and pick the one yielding fewer NAs
+parse_numeric_smart <- function(x) {
+  x_chr <- as.character(x)
+  v_dot   <- parse_number(x_chr, locale = locale(decimal_mark = ".", grouping_mark = ","))
+  v_comma <- parse_number(x_chr, locale = locale(decimal_mark = ",", grouping_mark = "."))
+  # choose the parse with more non-NAs
+  if (sum(!is.na(v_comma)) > sum(!is.na(v_dot))) v_comma else v_dot
 }
 
+load_and_process_weather_data <- function(file_path_weatherdata,
+                                          station = NULL, tz_out = "UTC") {
+  weather_raw <- read_delim(
+    file_path_weatherdata,
+    delim = ";",
+    # don't force a decimal_mark here; we'll parse columns ourselves
+    show_col_types = FALSE,
+    guess_max = 2e5
+  ) %>%
+    clean_names() %>%
+    rename(
+      station       = station_abbr,
+      ts_raw        = reference_timestamp,
+      temperature_c = tre200h0,
+      humidity_pct  = ure200h0,
+      wind_speed_ms = fkl010h0
+    ) %>%
+    mutate(
+      # STRICT DMY to avoid 2001/2031 mixups
+      timestamp = parse_date_time(ts_raw, orders = c("dmy HM","dmy HMS"), tz = tz_out),
+      timestamp = floor_date(timestamp, "hour"),
+      date      = as_date(timestamp),
+
+      # robust numeric parsing
+      temperature_c = parse_numeric_smart(temperature_c),
+      humidity_pct  = parse_numeric_smart(humidity_pct),
+      wind_speed_ms = parse_numeric_smart(wind_speed_ms),
+
+      # turn obvious sentinels into NA (MeteoSwiss sometimes uses -999 / -99.9)
+      temperature_c = na_if(temperature_c, -999),
+      wind_speed_ms = na_if(wind_speed_ms, -999),
+      humidity_pct  = na_if(humidity_pct,  -999)
+    ) %>%
+    filter(!is.na(timestamp), date >= as_date("2020-01-01"))
+
+  if (!is.null(station)) weather_raw <- filter(weather_raw, station == station)
+
+  # If humidity looks like 951 instead of 95.1, rescale
+  if (max(weather_raw$humidity_pct, na.rm = TRUE) > 100) {
+    weather_raw <- mutate(weather_raw, humidity_pct = humidity_pct / 10)
+  }
+
+  weather_hourly <- weather_raw %>%
+    group_by(timestamp) %>%
+    summarise(
+      temperature_c = mean(temperature_c, na.rm = TRUE),
+      humidity_pct  = mean(humidity_pct,  na.rm = TRUE),
+      wind_speed_ms = mean(wind_speed_ms, na.rm = TRUE),
+      .groups = "drop"
+    ) %>%
+    arrange(timestamp) %>%
+    mutate(date = as_date(timestamp))
+
+  weather_hourly
+}
 ```
 
 
 ```{r}
-# set working directory
-setwd("C:/Users/xwxba/Documents/DataSc/Sustainability-Analytics/Sustainability-Analytics-Project")
 
 ## Define file paths 
 
-energy_file <- "./data/household_energy_profile_Wynemattestrasse_17_5_years.csv"
-weather_file <- "./data/ogd-smn_bus_h_historical_2020-2029.csv"
+energy_file  <- "../data/household_energy_profile_Wynemattestrasse_17_5_years.csv"
+weather_file <- "../data/ogd-smn_bus_h_historical_2020-2029.csv"
 
-## Execute the functions to get processed data frames
+energy_df  <- load_and_process_energy_data(energy_file, aggregate_to_hour = TRUE)
+weather_df <- load_and_process_weather_data(weather_file, station = NULL)
 
-energy_df <- load_and_process_energy_data(energy_file)
-weather_df <- load_and_process_weather_data(weather_file)
+final_df_h <- left_join(energy_df, weather_df, by = "timestamp") %>% 
+  select(-date.y) %>% 
+  rename(date = date.x)
 
-# Merge the energy and weather dataframes using the 'date' column
-# A left_join keeps all rows from the energy data and adds matching weather data
-final_df_h <- left_join(energy_df, weather_df, by = "date")
 
 # Display the first few rows of the final merged dataset to verify
 head(final_df_h, 100)
 
 
 ```
+
+
+```{r}
+range(energy_df$timestamp); range(weather_df$timestamp)
+length(intersect(unique(energy_df$timestamp), unique(weather_df$timestamp)))
+sum(is.na(final_df_h$temperature_c))
+
+```
+
+
 
 ```{r}
 # Save the final merged dataset to a CSV file
@@ -262,12 +350,13 @@ final_df_d <- final_df_h %>%
     is_price_spike_response         = max(is_price_spike_response, na.rm = TRUE),
 
     # Weather (daily averages)
-    temperature_daily_C             = mean(`temperature_hourly/°C`, na.rm = TRUE),
-    humidity_pct                    = mean(`humidity/%`, na.rm = TRUE),
-    wind_speed_ms                   = mean(`wind_speed/m/s`, na.rm = TRUE)
+    temperature_daily_C             = mean(`temperature_c`, na.rm = TRUE),
+    humidity_daily_pct                    = mean(`humidity_pct`, na.rm = TRUE),
+    wind_speed_daily_ms                   = mean(`wind_speed_ms`, na.rm = TRUE)
   ) %>%
   ungroup()
 
+head(final_df_d,10)
 ```
 
 
@@ -290,14 +379,14 @@ plot_vars <- c(
   "grid_import_total_k_wh",
   "self_consumption_pv_k_wh",
   "pv_production_k_wh",
-  "temperature_daily/°C",
-  "humidity/%",
-  "wind_speed/m/s"
+  "temperature_c",
+  "humidity_pct",
+  "wind_speed_ms"
 )
 
 # Create a named list of plots
 plots <- lapply(plot_vars, function(var) {
-  ggplot(final_df, aes(x = timestamp, y = .data[[var]])) +
+  ggplot(final_df_h, aes(x = timestamp, y = .data[[var]])) +
     geom_line() +
     labs(title = var, x = "Timestamp", y = "Value") +
     theme_minimal()
@@ -321,13 +410,13 @@ plot_vars <- c(
   "grid_import_total_k_wh",
   "self_consumption_pv_k_wh",
   "pv_production_k_wh",
-  "temperature_hourly/°C",
-  "humidity/%",
-  "wind_speed/m/s"
+  "temperature_c",
+  "humidity_pct",
+  "wind_speed_ms"
 )
 
 plots <- lapply(plot_vars, function(var) {
-  ggplot(final_df, aes(x = timestamp, y = .data[[var]])) +
+  ggplot(final_df_h, aes(x = timestamp, y = .data[[var]])) +
     geom_line() +
     labs(title = var, x = "Time", y = "Value") +
     theme_minimal()
@@ -345,119 +434,9 @@ combined
 
 # Modeling
 
-## Finding the optimal battery size
-
-The plot below shows the total grid import over the entire period for each simulated battery size.
-
-# Plot the results
-ggplot(battery_results, aes(x = capacity, y = imports)) +
-  geom_line() +
-  geom_point() +
-  labs(
-    title = "Simulated Grid Import vs. Battery Capacity",
-    x = "Battery Capacity (kWh)",
-    y = "Total Grid Import (kWh)"
-  ) +
-  scale_x_continuous(breaks = battery_sizes) +
-  theme_minimal()
-
-kable(battery_results, caption = "Table 3: Simulated Grid Imports for Different Battery Capacities")
-
-The plot shows that as the battery capacity increases, the total grid import decreases. However, the reduction in imports becomes less significant with each increase in capacity. This demonstrates the law of diminishing returns. Based on this curve, we can identify an "elbow point"—a point where the benefit of adding more capacity starts to level off. This point represents a cost-effective battery size for the homeowner. For this particular dataset, a battery in the range of 8-12 kWh appears to offer a good balance, capturing a significant portion of the potential savings without being excessively large.
-
-# Time Series Plots of Energy and Weather Data
-# Reshape data for faceting
-plot_data <- final_df_d %>%
-  select(date, pv_production_k_wh, consumption_heat_pump_k_wh, consumption_ev_charging_k_wh, grid_import_total_k_wh, temperature_daily_c) %>%
-  pivot_longer(-date, names_to = "metric", values_to = "value")
-
-# Create the faceted plot
-ggplot(plot_data, aes(x = date, y = value)) +
-  geom_line(aes(color = metric), alpha = 0.8) +
-  facet_wrap(~ metric, scales = "free_y", ncol = 1) +
-  labs(
-    title = "Daily Energy and Weather Metrics Over Time",
-    x = "Date",
-    y = "Value"
-  ) +
-  theme_minimal() +
-  theme(legend.position = "none")
-
-# Scatter Plot: Temperature vs. Heat Pump Consumption
-
-ggplot(final_df_d, aes(x = temperature_daily_c, y = consumption_heat_pump_k_wh)) +
-  geom_point(alpha = 0.5) +
-  geom_smooth(method = "lm", col = "red") +
-  labs(
-    title = "Daily Temperature vs. Heat Pump Consumption",
-    x = "Average Daily Temperature (°C)",
-    y = "Daily Heat Pump Consumption (kWh)"
-  ) +
-  theme_minimal()
-```
-
-***
-
-# Calculating Optimal Battery Capacity
-
-A key recommendation for the homeowner could be the installation of a home battery to store excess solar energy. To make this recommendation concrete, we need to estimate an optimal battery size. A battery that is too small will not capture enough surplus energy, while one that is too large will be an unnecessary expense.
-
-### Methodology
-
-We will simulate the performance of different battery sizes using the historical hourly data. The simulation will operate on a simple principle for each hour of the day:
-
-1.  **Calculate Net Energy:** `Net Energy = PV Production - Total Consumption`
-2.  **Charging:** If `Net Energy` is positive (surplus) and the battery is not full, charge the battery with the surplus energy, up to its maximum capacity. Any remaining surplus is fed into the grid.
-3.  **Discharging:** If `Net Energy` is negative (deficit) and the battery has charge, discharge the battery to cover the deficit. If the battery is empty, the remaining deficit is imported from the grid.
-
-By running this simulation for a range of battery capacities (e.g., from 2 kWh to 20 kWh), we can calculate the total grid import for each scenario. The "optimal" battery size is the one that offers the best balance between reducing grid imports and cost-effectiveness—often visualized as the "elbow point" where adding more capacity yields diminishing returns.
-
-### R Code for Battery Simulation
-
-The following function simulates the daily operation of a battery of a given size.
-
-```{r battery-simulation, echo=TRUE}
-# This function simulates the performance of a battery of a given size.
-simulate_battery <- function(data, battery_capacity) {
-  battery_level <- 0
-  grid_import <- 0
-  
-  # Calculate net energy for each hour
-  data <- data %>%
-    mutate(net_energy = pv_production_k_wh - (consumption_base_load_k_wh + consumption_heat_pump_k_wh + consumption_ev_charging_k_wh + consumption_cooking_lighting_etc_k_wh))
-
-  # Loop through each hour of the data
-  for (i in 1:nrow(data)) {
-    net <- data$net_energy[i]
-    
-    if (net > 0) { # Surplus energy
-      charge_amount <- min(net, battery_capacity - battery_level)
-      battery_level <- battery_level + charge_amount
-    } else { # Energy deficit
-      discharge_amount <- min(abs(net), battery_level)
-      battery_level <- battery_level - discharge_amount
-      grid_import <- grid_import + (abs(net) - discharge_amount)
-    }
-  }
-  
-  return(grid_import)
-}
-
-# Define a range of battery sizes to test
-battery_sizes <- seq(2, 20, by = 2)
-total_imports <- sapply(battery_sizes, function(size) {
-  simulate_battery(final_df_h, size)
-})
-
-# Create a dataframe of the results
-battery_results <- data.frame(
-  capacity = battery_sizes,
-  imports = total_imports
-)
-
+TODO: Add modeling steps here.
 
 # Results and Discussion
 
 TODO: Add results and discussion here.
-
 
