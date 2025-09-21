@@ -225,12 +225,12 @@ head(final_df_d)
 # Save the daily aggregated data to a CSV file
 write_csv(final_df_d, "final_df_d.csv")
 ```
-
-## Time Series Visualization
+ 
+## Time Series Visualization: Hourly Data
 
 The following plots show the behavior of key energy and weather variables over the entire time period. This is useful for identifying seasonality, trends, and potential anomalies.
 
-```{r time-series-plots, fig.height=12}
+```{r time-series-plots-hourly, fig.height=18}
 # Define the list of variables to plot
 plot_vars <- c(
   "consumption_base_load_k_wh", "consumption_heat_pump_k_wh",
@@ -244,8 +244,13 @@ plots <- lapply(plot_vars, function(var) {
   if (!var %in% names(final_df_h)) return(NULL)
   ggplot(final_df_h, aes(x = timestamp, y = .data[[var]])) +
     geom_line(linewidth = 0.5) +
-    labs(title = var, x = "Time", y = "Value") +
-    theme_minimal()
+    labs(title = var, x = "Time - hourly", y = "Value") +
+    theme_minimal(base_size = 16) +
+    theme(
+      plot.title = element_text(size = 18, face = "bold"),
+      axis.title = element_text(size = 16),
+      axis.text = element_text(size = 14)
+    )
 })
 
 # Remove NULLs (in case some variables are absent)
@@ -254,6 +259,351 @@ plots <- Filter(Negate(is.null), plots)
 # Arrange all plots in a grid for easier comparison
 wrap_plots(plots, ncol = 2)
 ```
+
+## Time Series Visualization: Daily Data
+
+```{r}
+str(final_df_d)
+```
+
+
+
+```{r, time-series-plots-daily, fig.height=18}
+# Define the list of variables to plot
+plot_vars_d <- c(
+  "consumption_base_load_k_wh", "consumption_heat_pump_k_wh",
+  "consumption_ev_charging_k_wh", "grid_feed_in_pv_k_wh",
+  "grid_import_total_k_wh", "self_consumption_pv_k_wh",
+  "pv_production_k_wh", "temperature_daily_C", "humidity_daily_pct", "wind_speed_daily_ms"
+)
+
+# Create a list of plots
+plots <- lapply(plot_vars_d, function(var) {
+  if (!var %in% names(final_df_d)) return(NULL)
+  ggplot(final_df_d, aes(x = date, y = .data[[var]])) +
+    geom_line(linewidth = 0.5) +
+    labs(title = var, x = "Time - Daily", y = "Value") +
+    theme_minimal(base_size = 16) +
+    theme(
+      plot.title = element_text(size = 24, face = "bold"),
+      axis.title = element_text(size = 18),
+      axis.text = element_text(size = 18)
+    )
+})
+
+# Remove NULLs (in case some variables are absent)
+plots <- Filter(Negate(is.null), plots)
+
+# Arrange all plots in a grid for easier comparison
+wrap_plots(plots, ncol = 2)
+
+```
+
+
+## Visualization
+
+```{r}
+plot_df <- final_df_d %>%
+  select(date,
+         consumption_base_load_k_wh,
+         consumption_heat_pump_k_wh,
+         consumption_ev_charging_k_wh,
+         pv_production_k_wh) %>%
+  pivot_longer(-date, names_to = "series", values_to = "kwh")
+
+# Mark consumption vs PV
+plot_df$type <- ifelse(grepl("consumption", plot_df$series), "Consumption", "PV")
+
+ggplot() +
+  # Stacked area for consumption
+  geom_area(
+    data = filter(plot_df, type == "Consumption"),
+    aes(x = date, y = kwh, fill = series),
+    alpha = 0.7
+  ) +
+  # Line for PV production
+  geom_line(
+    data = filter(plot_df, type == "PV"),
+    aes(x = date, y = kwh, color = series),
+    linewidth = 0.8
+  ) +
+  labs(
+    title = "Daily Consumption Breakdown vs PV Production",
+    x = "Time - Daily",
+    y = "kWh",
+    fill = "Consumption type",
+    color = NULL
+  ) +
+  theme_minimal(base_size = 16) +
+  theme(
+    plot.title = element_text(size = 24, face = "bold"),
+    axis.title = element_text(size = 18),
+    axis.text  = element_text(size = 14),
+    legend.position = "bottom",
+    legend.box = "horizonal",
+    legend.margin = margin(t=8),
+    legend.text     = element_text(size = 8),   # legend labels
+    legend.title    = element_text(size = 8),   # legend title
+    plot.margin = margin(b=20)
+    )
+```
+
+
+```{r, fig.height=18}
+
+
+plot_df <- final_df_d %>%
+  mutate(year = as.integer(format(date, "%Y"))) %>%   # add year
+  select(date, year,
+         consumption_base_load_k_wh,
+         consumption_heat_pump_k_wh,
+         consumption_ev_charging_k_wh,
+         pv_production_k_wh) %>%
+  pivot_longer(-c(date, year), names_to = "series", values_to = "kwh") %>%
+  mutate(type = ifelse(grepl("consumption", series), "Consumption", "PV"))
+
+ggplot() +
+  # Stacked area for consumption
+  geom_area(
+    data = dplyr::filter(plot_df, type == "Consumption"),
+    aes(x = date, y = kwh, fill = series),
+    alpha = 0.7
+  ) +
+  # Line for PV production
+  geom_line(
+    data = dplyr::filter(plot_df, type == "PV"),
+    aes(x = date, y = kwh, color = series),
+    linewidth = 0.8
+  ) +
+  labs(
+    title = "Daily Consumption Breakdown vs PV Production",
+    x = "Time - Daily",
+    y = "kWh",
+    fill = "Consumption type",
+    color = NULL
+  ) +
+  facet_wrap(~ year, ncol = 1, scales = "free_x") +  # 5 vertical panels
+  theme_minimal(base_size = 24) +
+  theme(
+    plot.title = element_text(size = 36, face = "bold"),
+    axis.title = element_text(size = 24),
+    axis.text  = element_text(size = 24),
+    strip.text = element_text(size = 24, face = "bold"),
+    legend.position = "bottom",      # outside the plot area
+    legend.box = "horizontal",
+    legend.margin = margin(t = 8),
+    legend.text     = element_text(size = 24),   # legend labels
+    legend.title    = element_text(size = 24),   # legend title
+    plot.margin = margin(b = 30)
+  ) +
+  guides(
+    fill  = guide_legend(nrow = 1, byrow = TRUE),
+    color = guide_legend(nrow = 1, byrow = TRUE)
+  )
+
+```
+
+```{r, fig.height=24}
+# Use your hourly data frame: final_df_h
+# timestamp must be POSIXct; if it's character, convert with as.POSIXct()
+
+hourly_df <- final_df_h %>%
+  mutate(
+    year  = year(timestamp),
+    month = month(timestamp)
+  ) %>%
+  filter(year %in% c(2022, 2024), month == 4) %>%
+  select(timestamp, year,
+         consumption_base_load_k_wh,
+         consumption_heat_pump_k_wh,
+         consumption_ev_charging_k_wh,
+         pv_production_k_wh) %>%
+  pivot_longer(-c(timestamp, year),
+               names_to = "series", values_to = "kwh") %>%
+  filter(!is.na(kwh), is.finite(kwh)) %>% 
+  mutate(type = ifelse(grepl("^consumption_", series), "Consumption", "PV"))
+
+ggplot() +
+  # Stacked area for consumption components
+  geom_area(
+    data = dplyr::filter(hourly_df, type == "Consumption"),
+    aes(x = timestamp, y = kwh, fill = series),
+    alpha = 0.7
+  ) +
+  # PV production as a line
+  geom_line(
+    data = dplyr::filter(hourly_df, type == "PV"),
+    aes(x = timestamp, y = kwh, color = "black"),
+    linewidth = 0.5
+  ) +
+  facet_wrap(~ year, ncol = 1, scales = "free_x") +
+  scale_x_datetime(date_breaks = "1 month", date_labels = "%b") +
+  labs(
+    title = "Hourly Consumption Breakdown vs PV — Apr–Jul (2022 vs 2024)",
+    x = "Month",
+    y = "kWh",
+    fill = "Consumption type",
+    color = NULL
+  ) +
+  theme_minimal(base_size = 16) +
+  theme(
+    plot.title   = element_text(size = 24, face = "bold"),
+    axis.title   = element_text(size = 32),
+    axis.text    = element_text(size = 32),
+    strip.text   = element_text(size = 32, face = "bold"),
+    legend.position = "bottom",
+    legend.box      = "horizontal",
+    legend.margin   = margin(t = 8),
+    legend.text     = element_text(size = 32),
+    legend.title    = element_text(size = 3 2),
+    plot.margin     = margin(b = 28)
+  ) +
+  guides(
+    fill  = guide_legend(nrow = 1, byrow = TRUE, override.aes = list(size = 6)),
+    color = guide_legend(nrow = 1, byrow = TRUE, override.aes = list(size = 1.2))
+  )
+```
+
+
+```{r, fig.height=24}
+
+
+# Filter to Apr–Jul for 2022 & 2024 and reshape once
+hourly_long <- final_df_h %>%
+  mutate(year  = year(timestamp),
+         month = month(timestamp)) %>%
+  filter(year %in% c(2022, 2024), month == 4) %>%
+  select(timestamp, year,
+         consumption_base_load_k_wh,
+         consumption_heat_pump_k_wh,
+         consumption_ev_charging_k_wh,
+         pv_production_k_wh) %>%
+  pivot_longer(-c(timestamp, year), names_to = "series", values_to = "kwh") %>% 
+  filter(!is.na(kwh), is.finite(kwh))  
+
+# ---- Plot 1: Consumption breakdown (stacked areas) ----
+p_cons <- hourly_long %>%
+  filter(grepl("^consumption_", series)) %>%
+  ggplot(aes(x = timestamp, y = kwh, fill = series)) +
+  geom_area(alpha = 0.7) +
+  facet_wrap(~ year, ncol = 1, scales = "free_x") +
+  scale_x_datetime(date_breaks = "1 month", date_labels = "%b") +
+  labs(title = "Hourly Consumption Breakdown (Apr–Jul)",
+       x = NULL, y = "kWh", fill = "Consumption type") +
+  theme_minimal(base_size = 16) +
+  theme(
+    plot.title = element_text(size = 22, face = "bold"),
+    axis.title = element_text(size = 16),
+    axis.text  = element_text(size = 12),
+    strip.text = element_text(size = 14, face = "bold"),
+    legend.position = "bottom",
+    legend.box = "horizontal",
+    legend.text = element_text(size = 14),
+    legend.title = element_text(size = 16),
+    plot.margin = margin(b = 10)
+  ) +
+  guides(fill = guide_legend(nrow = 1, byrow = TRUE, override.aes = list(size = 6)))
+
+# ---- Plot 2: PV production (line) ----
+p_pv <- hourly_long %>%
+  filter(series == "pv_production_k_wh") %>%
+  ggplot(aes(x = timestamp, y = kwh)) +
+  geom_line(linewidth = 0.5) +
+  facet_wrap(~ year, ncol = 1, scales = "free_x") +
+  scale_x_datetime(date_breaks = "1 month", date_labels = "%b") +
+  labs(title = "Hourly PV Production (Apr–Jul)",
+       x = "Month", y = "kWh") +
+  theme_minimal(base_size = 16) +
+  theme(
+    plot.title = element_text(size = 22, face = "bold"),
+    axis.title = element_text(size = 16),
+    axis.text  = element_text(size = 12),
+    strip.text = element_text(size = 14, face = "bold"),
+    plot.margin = margin(t = 10)
+  )
+
+# ---- Stack vertically ----
+p_cons / p_pv
+
+
+```
+```{r, fig.height=24}
+# ---- Prepare data for Plot 3 ----
+df3 <- final_df_h %>%
+  mutate(year = year(timestamp), month = month(timestamp)) %>%
+  # choose your window: Apr–Jul; change to month == 4 if you only want April
+  filter(year %in% c(2022, 2024), month == 4) %>%
+  transmute(
+    timestamp, year,
+    base = consumption_base_load_k_wh,
+    heat = consumption_heat_pump_k_wh,
+    ev   = consumption_ev_charging_k_wh,
+    pv   = pv_production_k_wh
+  ) %>%
+  mutate(across(c(base, heat, ev, pv), ~replace_na(., 0)),
+         total_cons = base + heat + ev,
+         net = pv - total_cons)
+
+# Consumption components (as negatives for stacking)
+cons_long <- df3 %>%
+  select(timestamp, year, base, heat, ev) %>%
+  pivot_longer(-c(timestamp, year), names_to = "component", values_to = "kwh") %>%
+  mutate(kwh = -kwh)   # show below zero
+
+# ---- Plot 3: PV – Consumption (with breakdown) ----
+p_balance <- ggplot() +
+  # stacked negative areas = consumption breakdown
+  geom_area(
+    data = cons_long,
+    aes(x = timestamp, y = kwh, fill = component),
+    alpha = 0.7
+  ) +
+  # PV production as a line (positive)
+  geom_line(
+    data = df3,
+    aes(x = timestamp, y = pv, color = "PV production"),
+    linewidth = 0.6
+  ) +
+  # Net balance line
+  geom_line(
+    data = df3,
+    aes(x = timestamp, y = net, linetype = "Net (PV - total consumption)"),
+    linewidth = 0.7
+  ) +
+  facet_wrap(~ year, ncol = 1, scales = "free_x") +
+  scale_x_datetime(date_breaks = "1 month", date_labels = "%b") +
+  labs(
+    title = "PV Minus Consumption (with Component Breakdown)",
+    x = "Month",
+    y = "kWh",
+    fill = "Consumption type",
+    color = NULL,
+    linetype = NULL
+  ) +
+  theme_minimal(base_size = 32) +
+  theme(
+    plot.title = element_text(size = 32, face = "bold"),
+    axis.title = element_text(size = 32),
+    axis.text  = element_text(size = 32),
+    strip.text = element_text(size = 32, face = "bold"),
+    legend.position = "bottom",
+    legend.box = "horizontal",
+    legend.text = element_text(size = 22),
+    legend.title = element_text(size = 22),
+    plot.margin = margin(t = 8, b = 14)
+  ) +
+  guides(
+    fill     = guide_legend(nrow = 1, byrow = TRUE, override.aes = list(size = 6)),
+    color    = guide_legend(nrow = 1, byrow = TRUE),
+    linetype = guide_legend(nrow = 1, byrow = TRUE)
+  )
+
+# If you already have p_cons and p_pv from earlier:
+# p_cons / p_pv / p_balance
+
+p_balance
+```
+
 
 # Modeling
 
