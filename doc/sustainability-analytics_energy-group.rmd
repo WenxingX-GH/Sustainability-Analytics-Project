@@ -6,8 +6,13 @@ output:
   html_document:
     toc: true
     toc_float: true
-  pdf_document: default
-  word_document: default
+    toc_depth: 3
+    code_folding: hide
+  df_print: paged
+  knitr: 
+   opts_chunk:
+    warning:false
+    message:false
 ---
 
 ```{r setup, include=FALSE}
@@ -32,15 +37,16 @@ library(janitor)
 library(stringr)
 library(ggplot2)
 library(patchwork) # Used for arranging multiple plots
+library(scales)
 ```
 
-# Introduction
+# 1. Introduction
 
 The transition to renewable energy sources presents both opportunities and challenges for homeowners. Optimizing the use of technologies like photovoltaic (PV) systems and electric vehicles (EVs) requires a deep understanding of energy consumption patterns, which are heavily influenced by local weather.
 
 This analysis examines historical energy and weather data from a residence in Baden, Switzerland. By correlating the household's energy consumption with local weather patterns, we aim to develop data-driven recommendations to help the homeowner increase their self-consumption of clean energy, reduce costs, and contribute to a more sustainable energy system.
 
-# Datasets & Datasources
+# 2. Datasets & Datasources
 
 This analysis utilizes two primary data sources: detailed energy data for the household and local weather data. The table below provides a comprehensive overview of each source.
 
@@ -51,7 +57,7 @@ This analysis utilizes two primary data sources: detailed energy data for the ho
 | **Household Energy Profile** | AEW Energie AG | High‑resolution energy metrics for a residential property (Wynemattestrasse 17) over ~5 years: generation, consumption, and grid interaction. | `pv_production_k_wh` – PV energy production (kWh)<br>`consumption_base_load_k_wh` – Base load (e.g., refrigerator, standby)<br>`consumption_heat_pump_k_wh` – Heat pump consumption<br>`consumption_ev_charging_k_wh` – EV charging consumption<br>`grid_feed_in_pv_k_wh` – Surplus PV fed into grid<br>`grid_import_total_k_wh` – Total grid import |
 | **Historical Weather Data** | MeteoSwiss | Hourly weather observations (OGD) used to correlate energy patterns with environmental conditions. | `temperature_c` – Mean air temperature (°C)<br>`humidity_pct` – Mean relative humidity (%)<br>`wind_speed_ms` – Mean wind speed (m/s) |
 
-# Data Wrangling
+# 3. Data Wrangling
 
 This section includes the functions and steps to load, clean, process, and merge the datasets.
 
@@ -188,10 +194,9 @@ final_df_h <- left_join(energy_df, weather_df, by = "timestamp") %>%
 head(final_df_h)
 
 # Save the final hourly dataset to a CSV file
-write_csv(final_df_h, "final_df_h.csv")
+#write_csv(final_df_h, "final_df_h.csv")
 ```
 
-# Exploratory Data Analysis (EDA)
 
 ## Daily Aggregation
 
@@ -226,7 +231,8 @@ head(final_df_d)
 write_csv(final_df_d, "final_df_d.csv")
 ```
  
-## Time Series Visualization: Hourly Data
+# 4. Exploratory Data Analysis (EDA)
+## 4.1 Time Series Visualization: Hourly Data
 
 The following plots show the behavior of key energy and weather variables over the entire time period. This is useful for identifying seasonality, trends, and potential anomalies.
 
@@ -260,12 +266,12 @@ plots <- Filter(Negate(is.null), plots)
 wrap_plots(plots, ncol = 2)
 ```
 
-## Time Series Visualization: Daily Data
+As shown in the plots of consumption and grid transaction variables against hourly timestamps, there are pronounced annual seasonal patterns in several key metrics, including heat pump consumption, grid feed-in from PV, total grid import, and self-consumption of PV. These patterns are primarily driven by seasonal weather conditions. For example, heat pump consumption peaks during the winter months and reaches its lowest levels in summer. In contrast, photovoltaic (PV) production is concentrated between April and October, with output during the winter months dropping to nearly zero. This seasonal variation in PV production also shapes the dynamics of both grid feed-in and self-consumption of PV.
 
-```{r}
-str(final_df_d)
-```
+Additionally, the chart for EV charging consumption shows that an electric vehicle was introduced into the system starting in 2023. Ideally, EV charging demand should be aligned with PV production, so that charging is supplied as much as possible by locally generated solar electricity.
 
+
+## 4.2 Time Series Visualization: Daily Data
 
 
 ```{r, time-series-plots-daily, fig.height=18}
@@ -392,8 +398,8 @@ ggplot() +
     legend.position = "bottom",      # outside the plot area
     legend.box = "horizontal",
     legend.margin = margin(t = 8),
-    legend.text     = element_text(size = 24),   # legend labels
-    legend.title    = element_text(size = 24),   # legend title
+    legend.text     = element_text(size = 16),   # legend labels
+    legend.title    = element_text(size = 16),   # legend title
     plot.margin = margin(b = 30)
   ) +
   guides(
@@ -403,131 +409,9 @@ ggplot() +
 
 ```
 
-```{r, fig.height=24}
-# Use your hourly data frame: final_df_h
-# timestamp must be POSIXct; if it's character, convert with as.POSIXct()
-
-hourly_df <- final_df_h %>%
-  mutate(
-    year  = year(timestamp),
-    month = month(timestamp)
-  ) %>%
-  filter(year %in% c(2022, 2024), month == 4) %>%
-  select(timestamp, year,
-         consumption_base_load_k_wh,
-         consumption_heat_pump_k_wh,
-         consumption_ev_charging_k_wh,
-         pv_production_k_wh) %>%
-  pivot_longer(-c(timestamp, year),
-               names_to = "series", values_to = "kwh") %>%
-  filter(!is.na(kwh), is.finite(kwh)) %>% 
-  mutate(type = ifelse(grepl("^consumption_", series), "Consumption", "PV"))
-
-ggplot() +
-  # Stacked area for consumption components
-  geom_area(
-    data = dplyr::filter(hourly_df, type == "Consumption"),
-    aes(x = timestamp, y = kwh, fill = series),
-    alpha = 0.7
-  ) +
-  # PV production as a line
-  geom_line(
-    data = dplyr::filter(hourly_df, type == "PV"),
-    aes(x = timestamp, y = kwh, color = "black"),
-    linewidth = 0.5
-  ) +
-  facet_wrap(~ year, ncol = 1, scales = "free_x") +
-  scale_x_datetime(date_breaks = "1 month", date_labels = "%b") +
-  labs(
-    title = "Hourly Consumption Breakdown vs PV — Apr–Jul (2022 vs 2024)",
-    x = "Month",
-    y = "kWh",
-    fill = "Consumption type",
-    color = NULL
-  ) +
-  theme_minimal(base_size = 16) +
-  theme(
-    plot.title   = element_text(size = 24, face = "bold"),
-    axis.title   = element_text(size = 32),
-    axis.text    = element_text(size = 32),
-    strip.text   = element_text(size = 32, face = "bold"),
-    legend.position = "bottom",
-    legend.box      = "horizontal",
-    legend.margin   = margin(t = 8),
-    legend.text     = element_text(size = 32),
-    legend.title    = element_text(size = 3 2),
-    plot.margin     = margin(b = 28)
-  ) +
-  guides(
-    fill  = guide_legend(nrow = 1, byrow = TRUE, override.aes = list(size = 6)),
-    color = guide_legend(nrow = 1, byrow = TRUE, override.aes = list(size = 1.2))
-  )
-```
 
 
-```{r, fig.height=24}
-
-
-# Filter to Apr–Jul for 2022 & 2024 and reshape once
-hourly_long <- final_df_h %>%
-  mutate(year  = year(timestamp),
-         month = month(timestamp)) %>%
-  filter(year %in% c(2022, 2024), month == 4) %>%
-  select(timestamp, year,
-         consumption_base_load_k_wh,
-         consumption_heat_pump_k_wh,
-         consumption_ev_charging_k_wh,
-         pv_production_k_wh) %>%
-  pivot_longer(-c(timestamp, year), names_to = "series", values_to = "kwh") %>% 
-  filter(!is.na(kwh), is.finite(kwh))  
-
-# ---- Plot 1: Consumption breakdown (stacked areas) ----
-p_cons <- hourly_long %>%
-  filter(grepl("^consumption_", series)) %>%
-  ggplot(aes(x = timestamp, y = kwh, fill = series)) +
-  geom_area(alpha = 0.7) +
-  facet_wrap(~ year, ncol = 1, scales = "free_x") +
-  scale_x_datetime(date_breaks = "1 month", date_labels = "%b") +
-  labs(title = "Hourly Consumption Breakdown (Apr–Jul)",
-       x = NULL, y = "kWh", fill = "Consumption type") +
-  theme_minimal(base_size = 16) +
-  theme(
-    plot.title = element_text(size = 22, face = "bold"),
-    axis.title = element_text(size = 16),
-    axis.text  = element_text(size = 12),
-    strip.text = element_text(size = 14, face = "bold"),
-    legend.position = "bottom",
-    legend.box = "horizontal",
-    legend.text = element_text(size = 14),
-    legend.title = element_text(size = 16),
-    plot.margin = margin(b = 10)
-  ) +
-  guides(fill = guide_legend(nrow = 1, byrow = TRUE, override.aes = list(size = 6)))
-
-# ---- Plot 2: PV production (line) ----
-p_pv <- hourly_long %>%
-  filter(series == "pv_production_k_wh") %>%
-  ggplot(aes(x = timestamp, y = kwh)) +
-  geom_line(linewidth = 0.5) +
-  facet_wrap(~ year, ncol = 1, scales = "free_x") +
-  scale_x_datetime(date_breaks = "1 month", date_labels = "%b") +
-  labs(title = "Hourly PV Production (Apr–Jul)",
-       x = "Month", y = "kWh") +
-  theme_minimal(base_size = 16) +
-  theme(
-    plot.title = element_text(size = 22, face = "bold"),
-    axis.title = element_text(size = 16),
-    axis.text  = element_text(size = 12),
-    strip.text = element_text(size = 14, face = "bold"),
-    plot.margin = margin(t = 10)
-  )
-
-# ---- Stack vertically ----
-p_cons / p_pv
-
-
-```
-```{r, fig.height=24}
+```{r, fig.height=12}
 # ---- Prepare data for Plot 3 ----
 df3 <- final_df_h %>%
   mutate(year = year(timestamp), month = month(timestamp)) %>%
@@ -571,7 +455,7 @@ p_balance <- ggplot() +
     linewidth = 0.7
   ) +
   facet_wrap(~ year, ncol = 1, scales = "free_x") +
-  scale_x_datetime(date_breaks = "1 month", date_labels = "%b") +
+  scale_x_datetime(date_breaks = "1 day", date_labels = "%d-%b") +
   labs(
     title = "PV Minus Consumption (with Component Breakdown)",
     x = "Month",
@@ -580,29 +464,192 @@ p_balance <- ggplot() +
     color = NULL,
     linetype = NULL
   ) +
-  theme_minimal(base_size = 32) +
+  theme_minimal(base_size = 24) +
   theme(
-    plot.title = element_text(size = 32, face = "bold"),
-    axis.title = element_text(size = 32),
-    axis.text  = element_text(size = 32),
-    strip.text = element_text(size = 32, face = "bold"),
+    plot.title = element_text(size = 24, face = "bold"),
+    axis.title = element_text(size = 24),
+    axis.text  = element_text(size = 10, angle = 90),
+    strip.text = element_text(size = 24, face = "bold"),
     legend.position = "bottom",
     legend.box = "horizontal",
-    legend.text = element_text(size = 22),
-    legend.title = element_text(size = 22),
+    legend.text = element_text(size = 12),
+    legend.title = element_text(size = 12),
     plot.margin = margin(t = 8, b = 14)
   ) +
   guides(
+    linetype = guide_legend(nrow = 1, byrow = TRUE),
     fill     = guide_legend(nrow = 1, byrow = TRUE, override.aes = list(size = 6)),
-    color    = guide_legend(nrow = 1, byrow = TRUE),
-    linetype = guide_legend(nrow = 1, byrow = TRUE)
+    color    = guide_legend(nrow = 1, byrow = TRUE, order = 3)
   )
-
 # If you already have p_cons and p_pv from earlier:
 # p_cons / p_pv / p_balance
 
 p_balance
 ```
+
+
+
+```{r}
+
+# ==== 1) Aggregate hourly -> annual ====
+annual <- final_df_h %>%
+  mutate(year = year(timestamp)) %>%
+  group_by(year) %>%
+  summarise(
+    pv_production_k_wh      = sum(pv_production_k_wh,      na.rm = TRUE),
+    self_consumption_pv_k_wh= sum(self_consumption_pv_k_wh,na.rm = TRUE),
+    grid_feed_in_pv_k_wh    = sum(grid_feed_in_pv_k_wh,    na.rm = TRUE),
+    grid_import_total_k_wh   = sum(grid_import_total_k_wh,   na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  # quick check that PV = self + feed-in (report the diff)
+  mutate(check_diff_kwh = pv_production_k_wh - (self_consumption_pv_k_wh + grid_feed_in_pv_k_wh))
+
+# (optional) print discrepancies if any
+if (any(abs(annual$check_diff_kwh) > 1e-6)) {
+  message("Warning: PV != Self + Feed-in for some years. Diff (kWh):")
+  print(annual[, c("year", "check_diff_kwh")])
+}
+
+# Long format for stacked bars
+bars_long <- annual %>%
+  select(year, self_consumption_pv_k_wh, grid_feed_in_pv_k_wh) %>%
+  pivot_longer(-year, names_to = "component", values_to = "kwh") %>%
+  mutate(
+    component = recode(component,
+      self_consumption_pv_k_wh = "Self-consumption",
+      grid_feed_in_pv_k_wh     = "Grid feed-in"
+    )
+  )
+
+# ==== 2) Plot: stacked bars + overlay line ====
+ggplot() +
+  # Stacked bars = PV breakdown
+  geom_col(
+    data = bars_long,
+    aes(x = factor(year), y = kwh, fill = component),
+    position = "stack", width = 0.7
+  ) +
+  # Optional label of total PV on top of the stack
+  geom_text(
+    data = annual,
+    aes(x = factor(year),
+        y = pv_production_k_wh,
+        label = scales::comma(round(pv_production_k_wh))),
+    vjust = -0.4, size = 4
+  ) +
+  # Grid import overlay (line + points)
+  geom_line(
+    data = annual,
+    aes(x = factor(year), y = grid_import_total_k_wh, group = 1, color = "Grid import (total)"),
+    linewidth = 1
+  ) +
+  geom_point(
+    data = annual,
+    aes(x = factor(year), y = grid_import_total_k_wh, color = "Grid import (total)"),
+    size = 2.2
+  ) +
+  # If grid import is much smaller/larger than PV and you want a 2nd y-axis, uncomment:
+  # scale_y_continuous(labels = label_number_si(),
+  #                    sec.axis = sec_axis(~ ., name = "Grid import (kWh)")) +
+  scale_y_continuous(labels = label_number(scale_cut = cut_si("k"))) +
+  scale_fill_brewer(palette = "Pastel1") +
+  scale_color_manual(values = c("Grid import (total)" = "black")) +
+  labs(
+    title = "Annual PV Production Breakdown with Grid Import Overlay",
+    x = "Year",
+    y = "kWh",
+    fill = "PV production = Self-consumption + Grid feed-in",
+    color = NULL
+  ) +
+  theme_minimal(base_size = 16) +
+  theme(
+    plot.title = element_text(size = 20, face = "bold"),
+    legend.position = "bottom",
+    legend.box = "vertical",
+    legend.text = element_text(size = 12)
+  )
+
+```
+```{r}
+# Define seasons manually (meteorological seasons)
+get_season <- function(dates) {
+  m <- month(dates)
+  ifelse(m %in% 3:5,  "Spring",
+  ifelse(m %in% 6:8,  "Summer",
+  ifelse(m %in% 9:11, "Autumn", "Winter")))
+}
+
+season_summary <- final_df_d %>%
+  mutate(
+    year   = year(date),
+    season = get_season(date)
+  ) %>%
+  group_by(year, season) %>%
+  summarise(
+    pv_total_kwh = sum(pv_production_k_wh, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  group_by(year) %>%
+  mutate(
+    ratio_to_summer = pv_total_kwh / max(pv_total_kwh, na.rm = TRUE) * 100,
+    pv_total_kwh    = format(round(pv_total_kwh, 2), nsmall = 2),
+    ratio_to_summer = format(round(ratio_to_summer, 2), nsmall = 2)
+  )
+
+season_summary
+```
+
+```{r}
+# --- helper to assign seasons ---
+get_season <- function(dates) {
+  m <- month(dates)
+  ifelse(m %in% 3:5,  "Spring",
+  ifelse(m %in% 6:8,  "Summer",
+  ifelse(m %in% 9:11, "Autumn", "Winter")))
+}
+
+# --- summarize by year & season ---
+season_summary <- final_df_d %>%
+  mutate(
+    year   = year(date),
+    season = get_season(date)
+  ) %>%
+  group_by(year, season) %>%
+  summarise(
+    pv_total_kwh = sum(pv_production_k_wh, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  group_by(year) %>%
+  mutate(
+    ratio_to_summer = pv_total_kwh / max(pv_total_kwh, na.rm = TRUE) * 100
+  )
+
+# --- plot ---
+ggplot(season_summary, aes(x = season, y = pv_total_kwh, fill = season)) +
+  geom_col(width = 0.7) +
+  geom_text(
+    aes(label = paste0(comma(round(pv_total_kwh)), " (", round(ratio_to_summer), "%)")),
+    vjust = -0.3,
+    size = 4
+  ) +
+  facet_wrap(~ year, ncol = 1, scales = "free_y") +
+  scale_y_continuous(labels = label_number(scale_cut = cut_si("k"))) +
+  scale_fill_brewer(palette = "Set2") +
+  labs(
+    title = "Seasonal PV Production per Year",
+    x = "Season",
+    y = "PV production (kWh)"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title = element_text(size = 18, face = "bold"),
+    axis.title = element_text(size = 14),
+    axis.text  = element_text(size = 12),
+    legend.position = "none"
+  )
+```
+
 
 
 # Modeling
