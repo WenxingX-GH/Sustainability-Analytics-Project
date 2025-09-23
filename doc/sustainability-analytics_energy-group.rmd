@@ -2,6 +2,8 @@
 title: "Sustainability Analytics: Energy & Weather Data Report"
 author: "Barbara Maier, Wenxing Xu, Güney Usta"
 date: "2025-09-18"
+bibliography: references.bib
+csl: apa.csl
 output:
   html_document:
     toc: true
@@ -38,6 +40,7 @@ library(stringr)
 library(ggplot2)
 library(patchwork) # Used for arranging multiple plots
 library(scales)
+library(kableExtra)
 ```
 
 # 1. Introduction
@@ -224,10 +227,10 @@ final_df_d <- final_df_h %>%
   ) %>%
   ungroup()
 
-# Display the first few rows of the daily aggregated data
-head(final_df_d)
+# display the first few rows 
+#head(final_df_d)
 
-# Save the daily aggregated data to a CSV file
+# Save the daily data 
 write_csv(final_df_d, "final_df_d.csv")
 ```
  
@@ -245,7 +248,7 @@ plot_vars <- c(
   "pv_production_k_wh", "temperature_c", "humidity_pct", "wind_speed_ms"
 )
 
-# Create a list of plots
+# create a list of plots
 plots <- lapply(plot_vars, function(var) {
   if (!var %in% names(final_df_h)) return(NULL)
   ggplot(final_df_h, aes(x = timestamp, y = .data[[var]])) +
@@ -259,10 +262,10 @@ plots <- lapply(plot_vars, function(var) {
     )
 })
 
-# Remove NULLs (in case some variables are absent)
+# remove NULLs (in case some variables are absent)
 plots <- Filter(Negate(is.null), plots)
 
-# Arrange all plots in a grid for easier comparison
+# arrange all plots in a grid for easier comparison
 wrap_plots(plots, ncol = 2)
 ```
 
@@ -273,10 +276,10 @@ Additionally, the chart for EV charging consumption shows that an electric vehic
 
 ## 4.2 Time Series Visualization: Daily Data
 
-Additionally, the hourly data is convert into daily data, 
+Additionally, the hourly data is converted into daily data, enabling clearer identification of long-term seasonal patterns, reducing short-term noise, and facilitating comparisons across years. 
 
 ```{r, time-series-plots-daily, fig.height=18}
-# Define the list of variables to plot
+# define the list of variables to plot
 plot_vars_d <- c(
   "consumption_base_load_k_wh", "consumption_heat_pump_k_wh",
   "consumption_ev_charging_k_wh", "grid_feed_in_pv_k_wh",
@@ -284,7 +287,7 @@ plot_vars_d <- c(
   "pv_production_k_wh", "temperature_daily_C", "humidity_daily_pct", "wind_speed_daily_ms"
 )
 
-# Create a list of plots
+# create a list of plots
 plots <- lapply(plot_vars_d, function(var) {
   if (!var %in% names(final_df_d)) return(NULL)
   ggplot(final_df_d, aes(x = date, y = .data[[var]])) +
@@ -292,29 +295,29 @@ plots <- lapply(plot_vars_d, function(var) {
     labs(title = var, x = "Time - Daily", y = "Value") +
     theme_minimal(base_size = 16) +
     theme(
-      plot.title = element_text(size = 24, face = "bold"),
-      axis.title = element_text(size = 18),
-      axis.text = element_text(size = 18)
+      plot.title = element_text(size = 18, face = "bold"),
+      axis.title = element_text(size = 14),
+      axis.text = element_text(size = 14)
     )
 })
 
-# Remove NULLs (in case some variables are absent)
+# remove NULLs (in case some variables are absent)
 plots <- Filter(Negate(is.null), plots)
 
-# Arrange all plots in a grid for easier comparison
+# arrange all plots in a grid for easier comparison
 wrap_plots(plots, ncol = 2)
 
 ```
-```{r}
-str(final_df_d)
-```
+The daily plots confirm strong seasonal effects in both consumption and PV-related variables, consistent with weather-driven dynamics. Base load demand remains stable, while EV charging appears irregular and only from 2023 onward. Environmental variables show expected patterns: temperature cycles annually, humidity stays relatively stable, and wind speed is highly variable with occasional peaks.
+
+## 4.3 Time Series Visualization Monthly Energy Balance
+
+For the monthly balance, the hourly data was aggregated into monthly totals, separating PV production, grid transactions, and consumption categories. This aggregation smooths out daily fluctuations and highlights seasonal trends, such as higher PV generation in summer and increased heat pump demand in winter. It also makes the overall energy balance between production, self-consumption, feed-in, and imports easier to interpret.
+
+```{r, Monthly Energy Balance}
 
 
-
-```{r}
-
-
-# ==== 1) Aggregate monthly ====
+# Aggregate monthly 
 monthly_summary <- final_df_d %>%
   mutate(year = year(date),
          month = floor_date(date, "month")) %>%
@@ -330,7 +333,7 @@ monthly_summary <- final_df_d %>%
     .groups = "drop"
   )
 
-# ==== 2) Reshape and set sign convention ====
+# Reshape and set sign convention
 monthly_long <- monthly_summary %>%
   pivot_longer(-c(year, month), names_to = "category", values_to = "kwh") %>%
   mutate(
@@ -350,7 +353,7 @@ monthly_long <- monthly_summary %>%
     )
   )
 
-# ==== 3) Plot ====
+# Plot 
 ggplot(monthly_long, aes(x = month, y = kwh, fill = category)) +
   geom_col(position = "stack", width = 25) +
   scale_y_continuous(labels = label_number(scale_cut = cut_si("k"))) +
@@ -359,7 +362,7 @@ ggplot(monthly_long, aes(x = month, y = kwh, fill = category)) +
     title = "Monthly Energy Balance",
     x = "Month",
     y = "kWh",
-    fill = "Category"
+    fill = " "
   ) +
   theme_minimal(base_size = 14) +
   theme(
@@ -370,9 +373,13 @@ ggplot(monthly_long, aes(x = month, y = kwh, fill = category)) +
   )
 
 ```
+The monthly energy balance chart highlights the interplay between production (positive) and consumption(negative) over time. PV production dominates in the summer months, driving both higher grid feed-in and greater self-consumption, while nearly disappearing in winter. Conversely, heat pump consumption rises sharply in the colder months, contributing to increased grid import during this period. Base consumption remains relatively stable, while EV charging becomes visible only after 2023, adding irregular but notable demand. Overall, the chart illustrates strong seasonal dependencies and the complementary relationship between PV generation and energy demand.
 
 
-## Visualization
+# 5. Sustainability Analysis and Optimization Strategies
+## 5.1 Question 1: PV Production Efficiency   
+
+The `Daily Consumption Breakdown vs PV Production` illustrates daily breakdown of electricity consumption components—base load, heat pump, and EV charging—in relation to photovoltaic (PV) production between 2020 and 2024. Heat pump consumption displays a strong seasonal pattern, with demand peaking in the winter months and declining almost entirely during summer. In contrast, PV production follows the opposite trend, reaching its highest levels between April and October while dropping to near zero in winter. The comparison highlights a clear seasonal mismatch between PV generation and heating demand, where reliance on grid imports is greatest in winter when PV output is minimal, and opportunities for self-consumption and grid feed-in are concentrated in the sunnier months.
 
 ```{r, Daily Consumption Breakdown vs PV}
 plot_df <- final_df_d %>%
@@ -419,7 +426,7 @@ ggplot() +
     plot.margin = margin(b=20)
     )
 ```
-
+`Daily Consumption Breakdown vs PV Production` presents the yearly breakdown of daily consumption components compared with PV production from 2020 to 2024. The seasonal patterns remain consistent across years, with PV production peaking in summer and heat pump demand dominating in winter. However, the charts reveal that only a limited share of PV production is directly used for self-consumption, as base load and EV charging demand remain relatively small compared to the PV output during sunny months. This mismatch indicates that much of the solar generation is likely exported to the grid rather than consumed locally. Additionally, a noticeable dip in consumption between July and August suggests a vacation period, where overall demand temporarily decreases while PV generation remains high.
 
 ```{r, Daily Consumption Breakdown vs PV, fig.height=18}
 
@@ -474,7 +481,71 @@ ggplot() +
   )
 
 ```
+The table `Seasonal PV Production by Year` shows that autumn and winter PV production is extremely low, about 0–3% of the summer level each year, almost negligible output during 6 months, while spring production reaches roughly 43–48% of summer.
+Several sources estimate that PV systems in temperate latitudes produce 40–60% less energy in winter than in summer. For example, Lighthouse Solar reports a drop of 40-60% for solar power in December/January compared to July/August @LighthouseSolar2017. In comparison, the winter PV production in our case is significantly lower than the average expectation, suggesting potential system or site-specific inefficiencies. There are several possible explanations:
 
+- The solar panels may be mounted at a tilt angle optimized for summer sun but not ideal for capturing low-angle winter sunlight, which reduces winter generation dramatically @Nahim2025; @EnergyGovWinter.
+
+- In addition, weather factors such as cloud cover, snow, and shorter daylight hours further cut winter production @Amusan2019; @Mokhtari2021.
+
+- Panel efficiency under cold, low-light conditions might also be less than expected, if the equipment or orientation isn't optimized for those conditions @Sarmah2023; @Shaker2024.
+
+
+```{r}
+# Define seasons manually 
+get_season <- function(dates) {
+  m <- month(dates)
+  ifelse(m %in% 3:5,  "Spring",
+  ifelse(m %in% 6:8,  "Summer",
+  ifelse(m %in% 9:11, "Autumn", "Winter")))
+}
+
+# build table (numeric, rounded)
+season_summary_tbl <- final_df_d %>%
+  mutate(year = year(date),
+         season = get_season(date)) %>%
+  group_by(year, season) %>%
+  summarise(pv_total_kwh = sum(pv_production_k_wh, na.rm = TRUE), .groups = "drop") %>%
+  group_by(year) %>%
+  mutate(ratio_to_summer = pv_total_kwh / max(pv_total_kwh, na.rm = TRUE) * 100) %>%
+  ungroup() %>%
+  mutate(
+    # order seasons 
+    season = factor(season, levels = c("Spring","Summer","Autumn","Winter")),
+    pv_total_kwh    = round(pv_total_kwh, 2),
+    ratio_to_summer = round(ratio_to_summer, 2)
+  ) %>%
+  arrange(year, season)
+
+# table with kableExtra
+season_summary_tbl %>%
+  mutate(year = as.character(year)) %>%
+  knitr::kable(
+    caption = "Seasonal PV Production by Year",
+    col.names = c("Year", "Season", "PV total (kWh)", "Ratio to Summer (%)"),
+    align = c("c","l","r","r"),
+    booktabs = TRUE,
+    format.args = list(big.mark = ",", scientific = FALSE)
+  ) %>%
+  kableExtra::kable_styling(full_width = T, bootstrap_options = c("striped","hover")) %>%
+  kableExtra::collapse_rows(columns = 1, valign = "top")
+```
+
+**Optimization Suggestions:**
+Based on the PV production analysis, the results indicate that the solar panels generate substantially less energy during the autumn and winter seasons compared to reference in the same region. This points to a fundamental inefficiency in the current system configuration. Consequently, there is considerable potential for optimization. Possible strategies include:
+
+-- Adjusting panel tilt or orientation to better capture low-angle winter sunlight, or considering dual-tilt/adjustable mounting systems.
+
+-- Installing higher-efficiency modules designed for low-light conditions, which can improve energy yield during cloudy or short-day periods.
+
+-- Regular maintenance and snow management to prevent shading or coverage that can drastically reduce winter output.
+
+-- Integrating storage solutions (e.g., batteries) or load shifting strategies to maximize the use of PV energy when production is highest.
+
+Implementing such measures could reduce the seasonal mismatch between generation and demand, improve self-consumption, and increase the overall sustainability and resilience of the system. 
+
+
+## 5.2 Question 2: EV Charing Efficiency 
 
 
 ```{r, fig.height=12}
@@ -637,84 +708,8 @@ ggplot() +
   )
 
 ```
-```{r}
-# Define seasons manually (meteorological seasons)
-get_season <- function(dates) {
-  m <- month(dates)
-  ifelse(m %in% 3:5,  "Spring",
-  ifelse(m %in% 6:8,  "Summer",
-  ifelse(m %in% 9:11, "Autumn", "Winter")))
-}
 
-season_summary <- final_df_d %>%
-  mutate(
-    year   = year(date),
-    season = get_season(date)
-  ) %>%
-  group_by(year, season) %>%
-  summarise(
-    pv_total_kwh = sum(pv_production_k_wh, na.rm = TRUE),
-    .groups = "drop"
-  ) %>%
-  group_by(year) %>%
-  mutate(
-    ratio_to_summer = pv_total_kwh / max(pv_total_kwh, na.rm = TRUE) * 100,
-    pv_total_kwh    = format(round(pv_total_kwh, 2), nsmall = 2),
-    ratio_to_summer = format(round(ratio_to_summer, 2), nsmall = 2)
-  )
 
-season_summary
-```
-
-```{r}
-# --- helper to assign seasons ---
-get_season <- function(dates) {
-  m <- month(dates)
-  ifelse(m %in% 3:5,  "Spring",
-  ifelse(m %in% 6:8,  "Summer",
-  ifelse(m %in% 9:11, "Autumn", "Winter")))
-}
-
-# --- summarize by year & season ---
-season_summary <- final_df_d %>%
-  mutate(
-    year   = year(date),
-    season = get_season(date)
-  ) %>%
-  group_by(year, season) %>%
-  summarise(
-    pv_total_kwh = sum(pv_production_k_wh, na.rm = TRUE),
-    .groups = "drop"
-  ) %>%
-  group_by(year) %>%
-  mutate(
-    ratio_to_summer = pv_total_kwh / max(pv_total_kwh, na.rm = TRUE) * 100
-  )
-
-# --- plot ---
-ggplot(season_summary, aes(x = season, y = pv_total_kwh, fill = season)) +
-  geom_col(width = 0.7) +
-  geom_text(
-    aes(label = paste0(comma(round(pv_total_kwh)), " (", round(ratio_to_summer), "%)")),
-    vjust = -0.3,
-    size = 4
-  ) +
-  facet_wrap(~ year, ncol = 1, scales = "free_y") +
-  scale_y_continuous(labels = label_number(scale_cut = cut_si("k"))) +
-  scale_fill_brewer(palette = "Set2") +
-  labs(
-    title = "Seasonal PV Production per Year",
-    x = "Season",
-    y = "PV production (kWh)"
-  ) +
-  theme_minimal(base_size = 14) +
-  theme(
-    plot.title = element_text(size = 18, face = "bold"),
-    axis.title = element_text(size = 14),
-    axis.text  = element_text(size = 12),
-    legend.position = "none"
-  )
-```
 
 
 
@@ -725,3 +720,6 @@ ggplot(season_summary, aes(x = season, y = pv_total_kwh, fill = season)) +
 # Results and Discussion
 
 *TODO: Add results and discussion here.*
+*TODO: Limitations are critically considered.*
+
+# Outlook
