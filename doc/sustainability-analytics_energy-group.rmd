@@ -789,7 +789,129 @@ Based on the analysis, a residential battery storage system is a highly recommen
 
 # Modeling
 
-*TODO: Add modeling steps here.
+To gain a first impression of how the weather variables influence our energy variables, we created a pairs plot that visualizes the relationships between each variable.
+
+```{r}
+# Choose only numerical variables (no date or address)
+num_vars <- final_df_d[, c("pv_production_k_wh",
+                           "consumption_base_load_k_wh",
+                           "consumption_heat_pump_k_wh",
+                           "consumption_ev_charging_k_wh",
+                           "consumption_cooking_lighting_etc_k_wh",
+                           "grid_feed_in_pv_k_wh",
+                           "grid_import_total_k_wh",
+                           "self_consumption_pv_k_wh",
+                           "temperature_daily_C",
+                           "humidity_daily_pct",
+                           "wind_speed_daily_ms")]
+
+# Scatterplot-Matrix
+pairs(num_vars)
+```
+
+The pairs plot shows several important relationships. PV production and grid feed-in PV are strongly correlated, which is expected because excess solar power is usually fed directly into the grid. Heat pump consumption shows a clear negative relationship with temperature: when the weather is warmer, the heat pump uses less energy. In contrast, PV production is positively related to temperature, as higher temperatures generally coincide with more sunlight. Other variables such as humidity and wind speed do not show strong patterns with consumption or production. Based on these observations, temperature was chosen as the main predictor variable later for the dashboard, since it is strongly linked to both heat pump consumption and PV production.
+
+
+Motivation for linear regression
+The scatterplot matrix indicated that temperature has the strongest effect on both PV production and heat pump consumption, while other weather variables showed little influence. Therefore, we applied simple linear regression models using daily temperature as the predictor.
+
+```{r}
+#Linear Model 
+model_hp <- lm(consumption_heat_pump_k_wh ~ temperature_daily_C, data = final_df_d)
+summary(model_hp)
+
+model_pv <- lm(pv_production_k_wh ~ temperature_daily_C, data = final_df_d)
+summary(model_pv)
+```
+
+# Results of the regression models
+The regression of heat pump consumption on daily temperature shows a strong negative relationship (β = –2.89, p < 0.001, R² = 0.72). This confirms that warmer days lead to substantially lower heating demand.
+For PV production, the model indicates a positive relationship with temperature (β = 2.02, p < 0.001, R² = 0.46), meaning that higher temperatures are generally associated with higher solar output.
+
+***Limitations***
+To make truly accurate predictions of heat pump consumption and PV production, information on solar radiation would be required. Since this key variable is missing in our dataset, we relied on temperature as the main predictor. If solar radiation data were available, a more complex model than simple linear regression would likely be necessary to capture the additional effects. Given the current data, however, we proceed with the linear regression approach.
+
+
+# Dashboard 
+The motivation for creating the dashboard was to provide a practical tool for homeowners, making their energy use visible and thus more transparent, so they can better understand and adapt their behavior accordingly. 
+
+It consists of four main views: a daily perspective, an hourly perspective, a forecast view, and a page with analytics. Together, these pages illustrate how temperature affects both PV production and heat pump consumption, and how future values can be estimated based on weather forecasts. In the following sections, each dashboard view is briefly presented before explaining the steps taken to create them in Tableau.
+
+
+## Dashboard Views
+
+### Daily View
+```{r, out.width="80%", fig.align="center"}
+knitr::include_graphics("images/dayly_few.png")
+```
+To create the Daily View Dashboard, the dataset final_df_d was imported into Tableau.
+
+The key variables chosen were Temperature, PV Production, and Heat Pump Consumption, since these showed the strongest correlations in the earlier analysis.
+
+Interactive filters for Date and Temperature were added to allow the house owner interactively to explore the energy behavior of heat pump, PV production and Electric Vehicle depending on date and temperature.
+
+The intent was to give the house owner a first clear overview of his energy behavior.
+
+
+### Hourly View
+```{r, out.width="80%", fig.align="center"}
+knitr::include_graphics("images/hourly_few.png")
+```
+The second dashboard, Hourly View, presents the same variables, but this time at the hourly level.
+In the previous dashboard, all hourly values were aggregated to daily totals, while temperature was shown as a daily average.
+Here, you can directly observe what happens in a specific hour, giving a more detailed picture of energy behavior.
+The same filters for Date and Temperature are available, allowing the home owner to explore patterns more precisely and identify how short-term fluctuations affect both consumption and production.
+
+
+### Forecast View
+```{r, out.width="80%", fig.align="center"}
+knitr::include_graphics("images/forecast_few.png")
+```
+
+For the ***Forecast View***, several additional steps were required.
+First, a new data source for the weather forecast was created. To achieve this, we registered at openweathermap.org in order to obtain a free API key. Using this API, the actual weather data (temperature only) was downloaded into a Google Sheet (the code for this process is available in our Git repository). We then established a live connection between Tableau and this Google Sheet. The Google Sheet was set up to refresh automatically every two hours, ensuring that the forecast data in Tableau stays up to date.
+
+Afterwards, we created additional calculated variables in Tableau, such as Dayly Average Temperature, the Heat Pump Forecast and the PV Production Forecast. 
+
+The ***Daily Average Temperature*** had to be created because the new weather forecast in the Google Sheet provided temperature values every three hours.
+Earlier analysis had already shown that hourly data did not correlate as strongly with energy variables as daily averages did.
+This is understandable, since temperature fluctuates considerably within a single day, while the overall daily mean better reflects the relationship with energy consumption and production.
+To calculate this variable in Tableau, we used a FIXED LOD expression:
+DailyAvgTemp = { FIXED DATETRUNC('day',[Date]) : AVG([Temperature (°C)]) }.
+
+We then could use Dayly Average Temperature to  create the Forecast Variables.  
+The ***Heat Pump Forecast*** was defined using the regression model derived from the dataset, which showed a strong negative relationship between temperature and heat pump consumption.
+The calculated field in Tableau was specified as:
+HeatPumpForecast = 65.81 – 2.94 × [DailyAvgTemp].
+
+In the same way, we created the PV Production Forecast, based on the positive relationship between temperature and PV output.
+The formula was:
+PVForecast = –6.20 + 2.02 × [DailyAvgTemp].
+
+These two calculated fields allowed us to transform the forecasted temperature values from the Google Sheet into predictions for both consumption and production.
+
+It is important to note that these simple regression-based calculations cannot provide highly reliable predictions of heat pump consumption or PV production. In reality, many additional factors influence both outcomes, such as solar radiation, household usage patterns, or system efficiency. A more sophisticated forecasting model with multiple variables would therefore be required to achieve accurate results. Nevertheless, the approach presented here offers a useful first approximation and helps to illustrate how temperature alone can drive general patterns in energy consumption and production.
+
+
+
+
+### Analytics View
+```{r, out.width="80%", fig.align="center"}
+knitr::include_graphics("images/analytics_few.png")
+```
+
+The last dashboard, Analytics View, provides a more detailed picture of the relationships already described earlier. It shows the strong correlations between temperature and the two selected energy variables, heat pump consumption and PV production. The regression analyses were performed directly in Tableau, and the results (p-values, R², intercept, and coefficients) matched the outputs obtained in R. These regression coefficients were then used to construct the forecast variables in the previous dashboard.
+
+The results confirm that temperature is a strong predictor of heat pump consumption, as indicated by the high R² value, while it also explains part of the variation in PV production. 
+
+The final dashboards are published on Tableau Public and can be accessed at the following link:
+
+https://public.tableau.com/app/profile/barbara.maier/viz/SustainabilityAnalytics.
+
+Since Tableau Public works only with extracted data, the dashboards do not automatically update from the Google Sheet. To keep the forecast values current, the data sources have to be refreshed manually and the workbook re-published.
+
+
+
 
 # Results and Discussion
 
