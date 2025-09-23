@@ -273,6 +273,7 @@ Additionally, the chart for EV charging consumption shows that an electric vehic
 
 ## 4.2 Time Series Visualization: Daily Data
 
+Additionally, the hourly data is convert into daily data, 
 
 ```{r, time-series-plots-daily, fig.height=18}
 # Define the list of variables to plot
@@ -304,11 +305,76 @@ plots <- Filter(Negate(is.null), plots)
 wrap_plots(plots, ncol = 2)
 
 ```
+```{r}
+str(final_df_d)
+```
+
+
+
+```{r}
+
+
+# ==== 1) Aggregate monthly ====
+monthly_summary <- final_df_d %>%
+  mutate(year = year(date),
+         month = floor_date(date, "month")) %>%
+  group_by(year, month) %>%
+  summarise(
+    pv_production_kwh       = sum(pv_production_k_wh, na.rm = TRUE),
+    grid_import_total_kwh   = sum(grid_import_total_k_wh, na.rm = TRUE),
+    grid_feed_in_pv_kwh     = sum(grid_feed_in_pv_k_wh, na.rm = TRUE),
+    self_consumption_pv_kwh = sum(self_consumption_pv_k_wh, na.rm = TRUE),
+    consumption_base_kwh    = sum(consumption_base_load_k_wh, na.rm = TRUE),
+    consumption_heat_kwh    = sum(consumption_heat_pump_k_wh, na.rm = TRUE),
+    consumption_ev_kwh      = sum(consumption_ev_charging_k_wh, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+# ==== 2) Reshape and set sign convention ====
+monthly_long <- monthly_summary %>%
+  pivot_longer(-c(year, month), names_to = "category", values_to = "kwh") %>%
+  mutate(
+    category = recode(category,
+      pv_production_kwh       = "PV production",
+      grid_import_total_kwh   = "Grid import",
+      grid_feed_in_pv_kwh     = "Grid feed-in",
+      self_consumption_pv_kwh = "Self-consumption PV",
+      consumption_base_kwh    = "Base consumption",
+      consumption_heat_kwh    = "Heat pump consumption",
+      consumption_ev_kwh      = "EV charging"
+    ),
+    # Flip signs: consumption + feed-in are negative
+    kwh = case_when(
+      category %in% c("PV production", "Grid import") ~  kwh,
+      TRUE                                           ~ -kwh
+    )
+  )
+
+# ==== 3) Plot ====
+ggplot(monthly_long, aes(x = month, y = kwh, fill = category)) +
+  geom_col(position = "stack", width = 25) +
+  scale_y_continuous(labels = label_number(scale_cut = cut_si("k"))) +
+  scale_fill_brewer(palette = "Paired") +
+  labs(
+    title = "Monthly Energy Balance",
+    x = "Month",
+    y = "kWh",
+    fill = "Category"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title = element_text(size = 18, face = "bold"),
+    axis.title = element_text(size = 14),
+    axis.text  = element_text(size = 12),
+    legend.position = "bottom"
+  )
+
+```
 
 
 ## Visualization
 
-```{r}
+```{r, Daily Consumption Breakdown vs PV}
 plot_df <- final_df_d %>%
   select(date,
          consumption_base_load_k_wh,
@@ -337,7 +403,7 @@ ggplot() +
     title = "Daily Consumption Breakdown vs PV Production",
     x = "Time - Daily",
     y = "kWh",
-    fill = "Consumption type",
+    fill = " ",
     color = NULL
   ) +
   theme_minimal(base_size = 16) +
@@ -348,14 +414,14 @@ ggplot() +
     legend.position = "bottom",
     legend.box = "horizonal",
     legend.margin = margin(t=8),
-    legend.text     = element_text(size = 8),   # legend labels
-    legend.title    = element_text(size = 8),   # legend title
+    legend.text     = element_text(size = 12),   # legend labels
+    legend.title    = element_text(size = 12),   # legend title
     plot.margin = margin(b=20)
     )
 ```
 
 
-```{r, fig.height=18}
+```{r, Daily Consumption Breakdown vs PV, fig.height=18}
 
 
 plot_df <- final_df_d %>%
@@ -385,26 +451,26 @@ ggplot() +
     title = "Daily Consumption Breakdown vs PV Production",
     x = "Time - Daily",
     y = "kWh",
-    fill = "Consumption type",
+    fill = " ",
     color = NULL
   ) +
   facet_wrap(~ year, ncol = 1, scales = "free_x") +  # 5 vertical panels
   theme_minimal(base_size = 24) +
   theme(
-    plot.title = element_text(size = 36, face = "bold"),
-    axis.title = element_text(size = 24),
-    axis.text  = element_text(size = 24),
-    strip.text = element_text(size = 24, face = "bold"),
+    plot.title = element_text(size = 24, face = "bold"),
+    axis.title = element_text(size = 16),
+    axis.text  = element_text(size = 16),
+    strip.text = element_text(size = 16, face = "bold"),
     legend.position = "bottom",      # outside the plot area
     legend.box = "horizontal",
     legend.margin = margin(t = 8),
-    legend.text     = element_text(size = 16),   # legend labels
-    legend.title    = element_text(size = 16),   # legend title
+    legend.text     = element_text(size = 12),   # legend labels
+    #legend.title    = element_text(size = 12),   # legend title
     plot.margin = margin(b = 30)
   ) +
   guides(
-    fill  = guide_legend(nrow = 1, byrow = TRUE),
-    color = guide_legend(nrow = 1, byrow = TRUE)
+    fill  = guide_legend(nrow = 2, byrow = TRUE),
+    color = guide_legend(nrow = 2, byrow = TRUE, order = 2)
   )
 
 ```
