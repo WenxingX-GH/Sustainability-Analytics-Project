@@ -710,6 +710,117 @@ ggplot() +
 ```
 
 
+## Battery Storage Potential
+
+To assess the viability of a battery storage system, we need to understand the daily energy surplus and deficit. A surplus occurs when PV production exceeds total household consumption, and this excess energy could be used to charge a battery instead of being sold to the grid. A deficit occurs when consumption is higher than production, requiring energy from the grid or, potentially, from a battery.
+
+The plot below calculates the total surplus (charge potential) and deficit (discharge demand) for each day over the entire period.
+
+```{r}
+# GU: This analysis uses hourly data, which is essential for understanding intra-day
+# energy flows needed for battery sizing.
+
+# 1. Calculate hourly net energy (production - consumption)
+hourly_net <- final_df_h %>%
+  # Replace NA with 0 for calculation
+  mutate(across(where(is.numeric), ~replace_na(., 0))) %>%
+  mutate(
+    total_consumption = consumption_base_load_k_wh + consumption_heat_pump_k_wh + consumption_ev_charging_k_wh,
+    net_kwh = pv_production_k_wh - total_consumption
+  )
+
+# 2. Aggregate daily surplus (positive net) and deficit (negative net)
+daily_battery_potential <- hourly_net %>%
+  group_by(date) %>%
+  summarise(
+    # Sum of all hours where production > consumption
+    charge_potential_kwh = sum(net_kwh[net_kwh > 0]),
+    # Sum of all hours where consumption > production (value will be negative)
+    discharge_demand_kwh = sum(net_kwh[net_kwh < 0]),
+    .groups = "drop"
+  ) %>%
+  # Make discharge demand positive for plotting
+  mutate(discharge_demand_kwh = abs(discharge_demand_kwh))
+
+# 3. Plot the results
+ggplot(daily_battery_potential, aes(x = date)) +
+  geom_line(aes(y = charge_potential_kwh, color = "Daily Surplus (Charge Potential)"), alpha = 0.8) +
+  geom_line(aes(y = discharge_demand_kwh, color = "Daily Deficit (Discharge Demand)"), alpha = 0.8) +
+  scale_color_manual(values = c(
+    "Daily Surplus (Charge Potential)" = "darkgreen",
+    "Daily Deficit (Discharge Demand)" = "darkred"
+  )) +
+  labs(
+    title = "Daily Potential for Battery Charging and Discharging",
+    subtitle = "Surplus represents excess PV energy available to charge a battery within a day.",
+    x = "Date",
+    y = "Energy (kWh)",
+    color = "Metric"
+  ) +
+  theme_minimal(base_size = 16) +
+  theme(legend.position = "bottom", plot.title = element_text(face = "bold"))
+
+```
+
+The plot clearly shows the same strong seasonal pattern observed earlier.
+
+- Charge Potential (Green Line): During summer, there are frequent days with over 20 kWh of surplus energy—energy that is currently being fed to the grid but could be stored in a battery. This potential disappears almost completely in winter.
+- Discharge Demand (Red Line): This represents the energy needed from the grid (or a battery) when PV is not producing. In summer, the daily deficit is relatively low, often under 10 kWh, covering evening and nighttime loads. In winter, this deficit skyrockets due to the heat pump, far exceeding any potential for charging.
+
+This visualization confirms that a battery would be highly effective during the spring, summer, and autumn months for absorbing midday surplus and covering evening/night demand.
+
+###Recommendations for Battery System
+Based on the analysis, a residential battery storage system is a highly recommended investment for this household.
+
+1. Recommended Capacity: **10-15 kWh.**
+- On typical sunny days, the surplus energy is between 15 and 25 kWh. A battery in the 10-15 kWh range would be large enough to capture a significant portion of this daily surplus without being oversized. An oversized battery would be underutilized and not cost-effective.
+- This capacity would be sufficient to cover the typical summer evening and nighttime deficit of 5-10 kWh, making the house nearly self-sufficient on sunny days.
+
+###Operational Strategy
+- Charging: The system should be programmed to prioritize charging from surplus solar energy during peak production hours (approx. 10 AM to 4 PM).
+- Discharging: The battery should discharge to cover the household load when solar production ceases in the late afternoon and overnight. This maximizes self-consumption.
+- EV Charging Integration: Integrating the EV charger with the battery system would be ideal. The system could be set to charge the EV from solar surplus first, then use any remaining surplus to charge the home battery.
+
+###Limitations and Expectations
+- A battery will not solve the winter energy deficit. The lack of solar production in winter means there will be no energy to store. The household will still rely heavily on the grid during the coldest months to power the heat pump.
+- However, for the roughly 8-9 months of the year with significant solar production, a battery can dramatically increase energy self-consumption from around 30-40% to potentially over 70-80%, leading to significant cost savings and reduced grid reliance.
+
+
+
+# Modeling
+
+*TODO: Add modeling steps here.
+
+# Results and Discussion
+
+## Answers to Research Questions
+
+Based on the visualizations in the EDA, we can answer the core research questions about optimizing energy self-consumption.
+
+**How do energy consumption and production patterns vary over time?**
+
+The patterns show a strong and predictable seasonality.
+- **PV Production**: Is highly seasonal, peaking in the summer months (June-August) and dropping to nearly zero during winter (December-February). The seasonal plots show that winter production is often less than 10% of summer production.
+- **Heat Pump Consumption**: Shows the opposite pattern. It is the largest single driver of consumption and peaks during the cold winter months, running very little during the summer.
+- **EV Charging**: Appears as a new, significant load starting in 2023. Its pattern appears to be intermittent, suggesting it depends on when the vehicle is at home and needs charging.
+- **Base Load**: Remains relatively constant throughout the year, as expected.
+
+**What is the relationship between production, consumption, and grid interaction?**
+
+There is a significant seasonal mismatch between production and consumption.
+- **Summer**: The household generates a large surplus of solar energy. Much of this is fed into the grid, as shown by the large "Grid feed-in" bars in the monthly and annual plots.
+- **Winter**: The household has a large energy deficit. With very little PV production and high heating demand from the heat pump, it relies heavily on importing electricity from the grid.
+- **Self-Consumption**: The annual breakdown shows that a significant portion of PV energy is self-consumed. However, the mismatch implies there is a major opportunity to increase this. The new EV load, if charged during sunny midday hours, could absorb surplus PV energy that would otherwise be fed to the grid.
+
+**What data-driven recommendations can be made?**
+
+The analysis strongly supports the following recommendations for the homeowner:
+- **Shift EV Charging**: The most impactful change would be to charge the EV primarily during midday hours (e.g., 10 AM to 4 PM), especially on sunny days from spring to autumn. This would directly use the surplus solar power, increasing self-consumption and reducing the amount of energy sold cheaply to the grid.
+- **Shift Other Flexible Loads**: While harder to implement, shifting the use of other high-consumption appliances (like a washing machine or dishwasher) to daytime hours can also increase self-consumption.
+- **Consider Battery Storage**: The clear pattern of summer surplus and winter deficit makes the household a prime candidate for a home battery storage system. A battery would allow the surplus energy generated during the day to be stored and used during the evening and overnight, significantly reducing grid imports and increasing energy independence. The data from this report could be used to correctly size such a system.
+
+
+
 
 
 
@@ -723,3 +834,4 @@ ggplot() +
 *TODO: Limitations are critically considered.*
 
 # Outlook
+
