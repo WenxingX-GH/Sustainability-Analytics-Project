@@ -239,7 +239,7 @@ write_csv(final_df_d, "final_df_d.csv")
 
 The following plots show the behavior of key energy and weather variables over the entire time period. This is useful for identifying seasonality, trends, and potential anomalies.
 
-```{r time-series-plots-hourly, fig.height=18}
+```{r, time-series-plots-hourly, fig.height=18}
 # Define the list of variables to plot
 plot_vars <- c(
   "consumption_base_load_k_wh", "consumption_heat_pump_k_wh",
@@ -428,7 +428,7 @@ ggplot() +
 ```
 `Daily Consumption Breakdown vs PV Production` presents the yearly breakdown of daily consumption components compared with PV production from 2020 to 2024. The seasonal patterns remain consistent across years, with PV production peaking in summer and heat pump demand dominating in winter. However, the charts reveal that only a limited share of PV production is directly used for self-consumption, as base load and EV charging demand remain relatively small compared to the PV output during sunny months. This mismatch indicates that much of the solar generation is likely exported to the grid rather than consumed locally. Additionally, a noticeable dip in consumption between July and August suggests a vacation period, where overall demand temporarily decreases while PV generation remains high.
 
-```{r, Daily Consumption Breakdown vs PV, fig.height=18}
+```{r, Daily Consumption Breakdown vs PV2, fig.height=18}
 
 
 plot_df <- final_df_d %>%
