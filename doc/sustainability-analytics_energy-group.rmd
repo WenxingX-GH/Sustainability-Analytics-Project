@@ -217,6 +217,7 @@ head(final_df_h)
 
 To analyze broader trends, we aggregate the hourly data into daily summaries. Energy metrics are summed, while weather metrics are averaged for each day.
 
+
 ```{r daily-aggregation}
 self_col <- "self_consumption_pv_k_wh"
 
@@ -228,6 +229,7 @@ final_df_d <- final_df_h %>%
     consumption_base_load_k_wh = sum(consumption_base_load_k_wh, na.rm = TRUE),
     consumption_heat_pump_k_wh = sum(consumption_heat_pump_k_wh, na.rm = TRUE),
     consumption_ev_charging_k_wh = sum(consumption_ev_charging_k_wh, na.rm = TRUE),
+    consumption_cooking_lighting_etc_k_wh = sum(consumption_cooking_lighting_etc_k_wh, na.rm = TRUE),
     grid_feed_in_pv_k_wh = sum(grid_feed_in_pv_k_wh, na.rm = TRUE),
     grid_import_total_k_wh = sum(grid_import_total_k_wh, na.rm = TRUE),
     self_consumption_pv_k_wh = if (self_col %in% names(final_df_h)) sum(.data[[self_col]], na.rm = TRUE) else NA_real_,
@@ -255,7 +257,7 @@ The following plots show the behavior of key energy and weather variables over t
 ```{r, time-series-plots-hourly, fig.height=18}
 # Define the list of variables to plot
 plot_vars <- c(
-  "consumption_base_load_k_wh", "consumption_heat_pump_k_wh",
+  "consumption_base_load_k_wh", "consumption_heat_pump_k_wh", "consumption_cooking_lighting_etc_k_wh",
   "consumption_ev_charging_k_wh", "grid_feed_in_pv_k_wh",
   "grid_import_total_k_wh", "self_consumption_pv_k_wh",
   "pv_production_k_wh", "temperature_c", "humidity_pct", "wind_speed_ms"
@@ -293,7 +295,7 @@ Additionally, the hourly data is converted into daily data, enabling clearer ide
 ```{r, time-series-plots-daily, fig.height=18}
 # define the list of variables to plot
 plot_vars_d <- c(
-  "consumption_base_load_k_wh", "consumption_heat_pump_k_wh",
+  "consumption_base_load_k_wh", "consumption_heat_pump_k_wh", "consumption_cooking_lighting_etc_k_wh",
   "consumption_ev_charging_k_wh", "grid_feed_in_pv_k_wh",
   "grid_import_total_k_wh", "self_consumption_pv_k_wh",
   "pv_production_k_wh", "temperature_daily_C", "humidity_daily_pct", "wind_speed_daily_ms"
@@ -342,6 +344,7 @@ monthly_summary <- final_df_d %>%
     self_consumption_pv_kwh = sum(self_consumption_pv_k_wh, na.rm = TRUE),
     consumption_base_kwh    = sum(consumption_base_load_k_wh, na.rm = TRUE),
     consumption_heat_kwh    = sum(consumption_heat_pump_k_wh, na.rm = TRUE),
+    consumption_cooking_lighting_kwh = sum(consumption_cooking_lighting_etc_k_wh, na.rm = TRUE),
     consumption_ev_kwh      = sum(consumption_ev_charging_k_wh, na.rm = TRUE),
     .groups = "drop"
   )
@@ -357,7 +360,8 @@ monthly_long <- monthly_summary %>%
       self_consumption_pv_kwh = "Self-consumption PV",
       consumption_base_kwh    = "Base consumption",
       consumption_heat_kwh    = "Heat pump consumption",
-      consumption_ev_kwh      = "EV charging"
+      consumption_ev_kwh      = "EV charging",
+      consumption_cooking_lighting_kwh = "Cooking & lighting"
     ),
     # Flip signs: consumption + feed-in are negative
     kwh = case_when(
@@ -400,6 +404,7 @@ plot_df <- final_df_d %>%
   select(date,
          consumption_base_load_k_wh,
          consumption_heat_pump_k_wh,
+         consumption_cooking_lighting_etc_k_wh,
          consumption_ev_charging_k_wh,
          pv_production_k_wh) %>%
   pivot_longer(-date, names_to = "series", values_to = "kwh")
@@ -437,8 +442,12 @@ ggplot() +
     legend.margin = margin(t=8),
     legend.text     = element_text(size = 12),   # legend labels
     legend.title    = element_text(size = 12),   # legend title
-    plot.margin = margin(b=20)
-    )
+    plot.margin = margin(b=10)
+    )+
+  guides(
+    fill  = guide_legend(nrow = 2, byrow = TRUE),
+    color = guide_legend(nrow = 2, byrow = TRUE, order = 2)
+  )
 ```
 
 `Daily Consumption Breakdown vs PV Production` presents the yearly breakdown of daily consumption components compared with PV production from 2020 to 2024. The seasonal patterns remain consistent across years, with PV production peaking in summer and heat pump demand dominating in winter. However, the charts reveal that only a limited share of PV production is directly used for self-consumption, as base load and EV charging demand remain relatively small compared to the PV output during sunny months. This mismatch indicates that much of the solar generation is likely exported to the grid rather than consumed locally. Additionally, a noticeable dip in consumption between July and August suggests a vacation period, where overall demand temporarily decreases while PV generation remains high.
@@ -451,6 +460,7 @@ plot_df <- final_df_d %>%
   select(date, year,
          consumption_base_load_k_wh,
          consumption_heat_pump_k_wh,
+         consumption_cooking_lighting_etc_k_wh,
          consumption_ev_charging_k_wh,
          pv_production_k_wh) %>%
   pivot_longer(-c(date, year), names_to = "series", values_to = "kwh") %>%
@@ -561,6 +571,7 @@ Implementing such measures could reduce the seasonal mismatch between generation
 
 The introduction of an EV in 2023 presents a major opportunity to increase self-consumption. The key is to align its charging schedule with peak PV production. The plots below explore the energy balance and how the EV fits in.
 
+
 ```{r, fig.height=12}
 # ---- Prepare data for Plot 3 ----
 df3 <- final_df_h %>%
@@ -571,16 +582,17 @@ df3 <- final_df_h %>%
     timestamp, year,
     base = consumption_base_load_k_wh,
     heat = consumption_heat_pump_k_wh,
+    cooking = consumption_cooking_lighting_etc_k_wh,
     ev   = consumption_ev_charging_k_wh,
     pv   = pv_production_k_wh
   ) %>%
-  mutate(across(c(base, heat, ev, pv), ~replace_na(., 0)),
-         total_cons = base + heat + ev,
+  mutate(across(c(base, heat, cooking, ev, pv), ~replace_na(., 0)),
+         total_cons = base + heat + cooking + ev,
          net = pv - total_cons)
 
 # Consumption components (as negatives for stacking)
 cons_long <- df3 %>%
-  select(timestamp, year, base, heat, ev) %>%
+  select(timestamp, year, base, heat, cooking, ev) %>%
   pivot_longer(-c(timestamp, year), names_to = "component", values_to = "kwh") %>%
   mutate(kwh = -kwh)   # show below zero
 
@@ -610,7 +622,7 @@ p_balance <- ggplot() +
     title = "PV Minus Consumption (with Component Breakdown)",
     x = "Month",
     y = "kWh",
-    fill = "Consumption type",
+    fill = " ",
     color = NULL,
     linetype = NULL
   ) +
@@ -627,9 +639,9 @@ p_balance <- ggplot() +
     plot.margin = margin(t = 8, b = 14)
   ) +
   guides(
-    linetype = guide_legend(nrow = 1, byrow = TRUE),
-    fill     = guide_legend(nrow = 1, byrow = TRUE, override.aes = list(size = 6)),
-    color    = guide_legend(nrow = 1, byrow = TRUE, order = 3)
+    linetype = guide_legend(nrow = 2, byrow = TRUE),
+    fill     = guide_legend(nrow = 2, byrow = TRUE, override.aes = list(size = 6)),
+    color    = guide_legend(nrow = 2, byrow = TRUE, order = 3)
   )
 # If you already have p_cons and p_pv from earlier:
 # p_cons / p_pv / p_balance
@@ -637,7 +649,52 @@ p_balance <- ggplot() +
 p_balance
 ```
 
-The comparison of April 2022 (before the EV) and April 2024 (with the EV) is revealing. In 2024, the intermittent, high-power EV charging events are clearly visible. Crucially, many of these charging sessions occur during daylight hours when the "Net" energy line is positive, meaning they are successfully absorbing surplus solar power that would have otherwise been fed to the grid. However, some charging also occurs in the evening, increasing the negative net balance and reliance on grid imports. This highlights the opportunity for optimization: scheduling all EV charging to coincide with peak solar production.
+The comparison of April 2022 (before EV adoption) and April 2024 (after EV introduction) highlights the impact of EV charging on household energy balance. In April 2024, EV charging accounted for roughly 18% of total household electricity consumption, representing a significant new load on the system. Importantly, most charging sessions occurred between 9 pm and 3 am, a period without PV production, which led to a strongly negative net balance and increased reliance on grid imports. This highlights a clear optimization opportunity: shifting charging into daylight hours could allow EV demand to be met by self-generated solar energy, improving self-consumption and reducing grid dependency.
+
+The table `EV Charging Share of Total Household Consumption (%)` summarizes the monthly share of household electricity consumption attributed to EV charging in 2023 and 2024. In both years, EV charging demand is relatively low during the winter months (8–12%), but it rises sharply in summer, peaking at 37.0% in August 2023 and 35.6% in August 2024. This strong seasonal pattern indicates that EV charging makes up over one-third of total household electricity use in summer, while in winter it remains closer to 10% of the load. 
+
+
+```{r, EV Charging Share of Total}
+
+# ---- Prepare monthly EV share ----
+ev_monthly_pct <- final_df_h %>%
+  filter(year(timestamp) %in% c(2023, 2024)) %>%
+  mutate(year  = year(timestamp),
+         month = month(timestamp, label = TRUE, abbr = TRUE)) %>%
+  group_by(year, month) %>%
+  summarise(
+    ev_total   = sum(consumption_ev_charging_k_wh,           na.rm = TRUE),
+    base_total = sum(consumption_base_load_k_wh,             na.rm = TRUE),
+    heat_total = sum(consumption_heat_pump_k_wh,             na.rm = TRUE),
+    cook_total = sum(consumption_cooking_lighting_etc_k_wh,  na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    total_cons = ev_total + base_total + heat_total + cook_total,
+    ev_pct     = round(100 * ev_total / total_cons, 2)
+  ) %>%
+  select(year, month, ev_pct) %>%
+  arrange(year, month)
+
+# ---- Render as table ----
+ev_monthly_pct %>%
+  tidyr::pivot_wider(names_from = month, values_from = ev_pct) %>%
+  kable(
+    caption = "EV Charging Share of Total Household Consumption (%)",
+    col.names = c("Year", month.abb),
+    align = c("c", rep("r", 12)),
+    booktabs = TRUE
+  ) %>%
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
+
+
+```
+
+The chart `Annual PV Production Breakdown with Grid Import Overlay` compares PV production (split into self-consumption and grid feed-in) with total grid imports from 2020 to 2024. PV production remains relatively stable at around 5,800–6,000 kWh annually, with no significant increase in self-consumption across the years.
+
+In contrast, grid imports rise sharply by about 2,500 kWh between 2022 and 2023, a trend that coincides with the introduction of EV charging. This indicates that the additional electricity demand from EV charging is being supplied almost entirely by grid imports rather than local PV production, since PV self-consumption remains unchanged.
+
+This highlights a critical inefficiency: EV charging demand is not aligned with PV generation, leaving the household more dependent on external electricity sources despite stable solar output.
 
 ```{r}
 
@@ -721,12 +778,24 @@ ggplot() +
   )
 
 ```
+**Optimization Suggestions:**
+-- Shift Charging to Daytime Hours: Most EV charging currently occurs at night (9 pm–3 am), when PV production is zero. Rescheduling charging to mid-day (10 am–4 pm), especially in spring and summer, would allow a significant portion of the EV demand to be met directly from PV generation @Fachrizal2020.
+
+-- Smart Charging / Automated Scheduling: Use smart chargers or time-based charging programs to automatically prioritize charging during periods of surplus solar output @Ye2024. This reduces reliance on grid imports and minimizes energy wasted in feed-in (low compensation tariffs).
+
+-- Flexible Charging Strategies: Instead of fully charging the EV overnight, apply partial daytime charging when PV is available. Example: If the EV is parked at home during work-from-home days or weekends, charge incrementally during peak PV hours.
+
+-- Battery Storage Integration: If daily charging flexibility is limited (e.g., car is absent during daytime), adding a home battery could store excess solar from mid-day and discharge it during evening EV charging. This increases PV self-consumption not only for the EV but also for other household loads @Gu2025, @Ullner2025.
+
+-- Dynamic Tariff and Grid Optimization: Combine smart charging with real-time electricity price signals, Use cheap off-peak grid electricity at night only when PV availability is insufficient. Prioritize solar charging whenever possible to reduce long-term electricity costs.
+
 
 ## 5.3 Battery Storage Potential
 
 To assess the viability of a battery storage system, we need to understand the daily energy surplus and deficit. A surplus occurs when PV production exceeds total household consumption, and this excess energy could be used to charge a battery instead of being sold to the grid. A deficit occurs when consumption is higher than production, requiring energy from the grid or, potentially, from a battery.
 
 The plot below calculates the total surplus (charge potential) and deficit (discharge demand) for each day over the entire period.
+
 
 ```{r}
 # 1. Calculate hourly net energy (production - consumption)
@@ -780,10 +849,10 @@ ggplot(daily_battery_potential, aes(x = date)) +
   )) +
   
   # Define the primary and secondary y-axes
-  scale_y_continuous(
-    name = "Daily Energy (kWh)",
-    sec.axis = sec_axis(~ . * scaling_factor, name = "Cumulative Annual Surplus (kWh)")
-  ) +
+ scale_y_continuous(
+   name = "Daily Energy (kWh)",
+   sec.axis = sec_axis(~ . * scaling_factor, name = "Cumulative Annual Surplus (kWh)")
+ ) +
   
   # Add informative labels and title
   labs(
@@ -834,6 +903,7 @@ Operational Strategy:
 # 6. Modeling
 
 To gain a first impression of how the weather variables influence our energy variables, we created a pairs plot that visualizes the relationships between each variable.
+
 
 ```{r}
 # Choose only numerical variables (no date or address)
