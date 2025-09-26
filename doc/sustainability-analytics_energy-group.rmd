@@ -822,17 +822,35 @@ The plot below calculates the total surplus (charge potential) and deficit (disc
 
 
 ```{r}
-# 1. Calculate hourly net energy (production - consumption)
+# 1. Define all possible consumption columns
+# This list now correctly includes the "cooking & lighting" category.
+consumption_cols <- c(
+  "consumption_base_load_k_wh",
+  "consumption_heat_pump_k_wh",
+  "consumption_ev_charging_k_wh",
+  "consumption_cooking_lighting_etc_k_wh"
+)
+
+# 2. Find which of these columns actually exist in your dataframe
+existing_consumption_cols <- intersect(consumption_cols, names(final_df_h))
+
+# 3. Stop with a clear error message if no consumption data is found
+if (length(existing_consumption_cols) == 0) {
+  stop("CRITICAL ERROR: No consumption columns found in the data. Please check the input file.")
+}
+
+# 4. Calculate hourly net energy using a robust method
 hourly_net <- final_df_h %>%
+  # First, ensure all numeric columns have no NA values
   mutate(across(where(is.numeric), ~replace_na(., 0))) %>%
+  # Now, calculate total consumption by summing ONLY the columns that exist.
+  # This use of rowSums() is the key to making the code robust.
   mutate(
-    total_consumption = consumption_base_load_k_wh + 
-                        consumption_heat_pump_k_wh + 
-                        consumption_ev_charging_k_wh,
+    total_consumption = rowSums(select(., all_of(existing_consumption_cols))),
     net_kwh = pv_production_k_wh - total_consumption
   )
 
-# 2. Aggregate to find daily surplus (charge potential) and deficit (discharge demand)
+# 5. Aggregate to find daily surplus (charge potential) and deficit (discharge demand)
 daily_battery_potential <- hourly_net %>%
   group_by(date) %>%
   summarise(
@@ -845,40 +863,31 @@ daily_battery_potential <- hourly_net %>%
   mutate(cumulative_surplus_kwh = cumsum(charge_potential_kwh)) %>%
   ungroup()
 
-# 3. Define a scaling factor to properly display the secondary y-axis
-# This ensures both the daily and cumulative values are visible on the plot
-scaling_factor <- max(daily_battery_potential$cumulative_surplus_kwh, na.rm = TRUE) / 
-                  max(daily_battery_potential$charge_potential_kwh, na.rm = TRUE)
+# 6. Define the scaling factor for the secondary y-axis (with safety check)
+max_charge_potential <- max(daily_battery_potential$charge_potential_kwh, na.rm = TRUE)
+scaling_factor <- if (is.finite(max_charge_potential) && max_charge_potential > 0) {
+  max(daily_battery_potential$cumulative_surplus_kwh, na.rm = TRUE) / max_charge_potential
+} else {
+  1 # Default to 1 if no valid charge potential exists to prevent errors
+}
 
-# 4. Plot the results
+# 7. Plot the results
 ggplot(daily_battery_potential, aes(x = date)) +
-  # Daily Surplus and Deficit as lines
   geom_line(aes(y = charge_potential_kwh, color = "Daily Surplus (Charge Potential)"), linewidth = 0.8) +
   geom_line(aes(y = discharge_demand_kwh, color = "Daily Deficit (Discharge Demand)"), linewidth = 0.8) +
-  
-  # Cumulative Annual Surplus as a filled area, scaled to fit the plot
   geom_area(aes(y = cumulative_surplus_kwh / scaling_factor, fill = "Cumulative Annual Surplus"), alpha = 0.3) +
-  
-  # Define the primary and secondary y-axes
   scale_y_continuous(
     name = "Daily Energy (kWh)",
     sec.axis = sec_axis(~ . * scaling_factor, name = "Cumulative Annual Surplus (kWh)")
   ) +
-  
-  # Manual scales for colors and fills for a clear legend
   scale_color_manual(
     name = "Daily Metric",
-    values = c(
-      "Daily Surplus (Charge Potential)" = "darkgreen",
-      "Daily Deficit (Discharge Demand)" = "darkred"
-    )
+    values = c("Daily Surplus (Charge Potential)" = "darkgreen", "Daily Deficit (Discharge Demand)" = "darkred")
   ) +
   scale_fill_manual(
     name = "Annual Metric",
     values = c("Cumulative Annual Surplus" = "steelblue")
   ) +
-  
-  # Labels and theme
   labs(
     title = "Daily and Cumulative Annual Potential for Battery Storage",
     subtitle = "Lines show daily energy surplus/deficit; Area shows total accumulated surplus each year.",
@@ -891,7 +900,6 @@ ggplot(daily_battery_potential, aes(x = date)) +
     legend.box = "vertical",
     plot.title = element_text(face = "bold")
   )
-
 ```
 
 The plot clearly shows the same strong seasonal pattern observed earlier.
@@ -1069,4 +1077,5 @@ Beyond this, the report serves as an evidence-based briefing document for engagi
 -   Request precise quotes for a 10-15 kWh battery system, using this analysis to validate the required capacity.
 
 By implementing these data-driven strategies, the homeowner can transition from a passive consumer to an active manager of their own energy ecosystem. This analysis provides the foundation to increase energy independence, reduce costs, and create a more sustainable and resilient household.
+
 
