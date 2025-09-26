@@ -16,8 +16,8 @@ Sustainability-Analytics-Project
 │   ├──      household_energy_profile_Wynemattestrasse_17_5_years.csv
 │   └──      ogd-smn_bus_h_historical_2020-2029.csv 
 ├── doc/
-│   ├──      sustainability-analytics_energy-group.rmd
-│   ├──      sustainability-analytics_energy-group.html
+│   ├──      sustainability-analytics_energy-group.rmd  (final rmd)
+│   ├──      sustainability-analytics_energy-group.html (final html report)
 │   ├──      apa.csl
 │   └──      references.bib
 ├── code/
