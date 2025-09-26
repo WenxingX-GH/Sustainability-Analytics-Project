@@ -2,7 +2,11 @@
 ## Title: Sustainability Analytics: Energy & Weather Data Report
 ## Author: Barbara Maier, Wenxing Xu, Güney Usta
 ---
+### PPT: 
+https://www.canva.com/design/DAGx6WFe2yw/aFFckrychgOwXjivRvIDWg/edit?utm_content=DAGx6WFe2yw&utm_campaign=designshare&utm_medium=link2&utm_source=sharebutton
 
+### Dashboard: 
+https://public.tableau.com/app/profile/barbara.maier/viz/SustainabilityAnalytics
 ---
 
 ## Project Structure
