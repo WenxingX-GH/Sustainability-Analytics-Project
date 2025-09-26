@@ -43,6 +43,7 @@ library(patchwork)
 library(scales)
 library(kableExtra)
 library(modelsummary)
+library(knitr)
 ```
 
 ## 1. Introduction
@@ -69,10 +70,26 @@ This analysis utilizes two primary data sources: detailed energy data for the ho
 
 > **Licensing note:** *Von Google lizenziert* where applicable; MeteoSwiss data is provided under the Swiss OGD framework.
 
-| Dataset | Provider | Description | Key variables used |
-|------------------|------------------|------------------|------------------|
-| **Household Energy Profile** | AEW Energie AG | High‑resolution energy metrics for a residential property (Wynemattestrasse 17) over \~5 years: generation, consumption, and grid interaction. | `pv_production_k_wh` – PV energy production (kWh)<br>`consumption_base_load_k_wh` – Base load (e.g., refrigerator, standby)<br>`consumption_heat_pump_k_wh` – Heat pump consumption<br>`consumption_ev_charging_k_wh` – EV charging consumption<br>`grid_feed_in_pv_k_wh` – Surplus PV fed into grid<br>`grid_import_total_k_wh` – Total grid import |
-| **Historical Weather Data** | MeteoSwiss | Hourly weather observations (OGD) used to correlate energy patterns with environmental conditions. | `temperature_c` – Mean air temperature (°C)<br>`humidity_pct` – Mean relative humidity (%)<br>`wind_speed_ms` – Mean wind speed (m/s) |
+```{r}
+df <- data.frame(
+  Dataset = c("**Household Energy Profile**", "**Historical Weather Data**"),
+  Provider = c("AEW Energie AG", "MeteoSwiss"),
+  Description = c(
+    "High-resolution energy metrics for a residential property (Wynemattestrasse 17) over ~5 years: generation, consumption, and grid interaction.",
+    "Hourly weather observations (OGD) used to correlate energy patterns with environmental conditions."
+  ),
+  `Key variables used` = c(
+    "`pv_production_k_wh` – PV energy production (kWh)<br>`consumption_base_load_k_wh` – Base load (e.g., refrigerator, standby)<br>`consumption_heat_pump_k_wh` – Heat pump consumption<br>`consumption_ev_charging_k_wh` – EV charging consumption<br>`grid_feed_in_pv_k_wh` – Surplus PV fed into grid<br>`grid_import_total_k_wh` – Total grid import",
+    "`temperature_c` – Mean air temperature (°C)<br>`humidity_pct` – Mean relative humidity (%)<br>`wind_speed_ms` – Mean wind speed (m/s)"
+  ),
+  stringsAsFactors = FALSE
+)
+
+kable(df, format = "html", escape = FALSE) %>%
+  kable_styling(full_width = TRUE, bootstrap_options = c("striped", "hover", "condensed", "responsive"))
+
+```
+
 
 ## 3. Data Wrangling
 

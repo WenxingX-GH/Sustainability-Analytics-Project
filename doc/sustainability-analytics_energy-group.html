@@ -1833,7 +1833,8 @@ library(ggplot2)
 library(patchwork) 
 library(scales)
 library(kableExtra)
-library(modelsummary)</code></pre>
+library(modelsummary)
+library(knitr)</code></pre>
 <div id="introduction" class="section level2">
 <h2>1. Introduction</h2>
 <p>The transition to renewable energy sources presents both
@@ -1875,44 +1876,77 @@ comprehensive overview of each source.</p>
 applicable; MeteoSwiss data is provided under the Swiss OGD
 framework.</p>
 </blockquote>
-<table>
-<colgroup>
-<col width="25%" />
-<col width="25%" />
-<col width="25%" />
-<col width="25%" />
-</colgroup>
+<pre class="r"><code>df &lt;- data.frame(
+  Dataset = c(&quot;**Household Energy Profile**&quot;, &quot;**Historical Weather Data**&quot;),
+  Provider = c(&quot;AEW Energie AG&quot;, &quot;MeteoSwiss&quot;),
+  Description = c(
+    &quot;High-resolution energy metrics for a residential property (Wynemattestrasse 17) over ~5 years: generation, consumption, and grid interaction.&quot;,
+    &quot;Hourly weather observations (OGD) used to correlate energy patterns with environmental conditions.&quot;
+  ),
+  `Key variables used` = c(
+    &quot;`pv_production_k_wh` – PV energy production (kWh)&lt;br&gt;`consumption_base_load_k_wh` – Base load (e.g., refrigerator, standby)&lt;br&gt;`consumption_heat_pump_k_wh` – Heat pump consumption&lt;br&gt;`consumption_ev_charging_k_wh` – EV charging consumption&lt;br&gt;`grid_feed_in_pv_k_wh` – Surplus PV fed into grid&lt;br&gt;`grid_import_total_k_wh` – Total grid import&quot;,
+    &quot;`temperature_c` – Mean air temperature (°C)&lt;br&gt;`humidity_pct` – Mean relative humidity (%)&lt;br&gt;`wind_speed_ms` – Mean wind speed (m/s)&quot;
+  ),
+  stringsAsFactors = FALSE
+)
+
+kable(df, format = &quot;html&quot;, escape = FALSE) %&gt;%
+  kable_styling(full_width = TRUE, bootstrap_options = c(&quot;striped&quot;, &quot;hover&quot;, &quot;condensed&quot;, &quot;responsive&quot;))</code></pre>
+<table class="table table-striped table-hover table-condensed table-responsive" style="margin-left: auto; margin-right: auto;">
 <thead>
 <tr>
-<th>Dataset</th>
-<th>Provider</th>
-<th>Description</th>
-<th>Key variables used</th>
+<th style="text-align:left;">
+Dataset
+</th>
+<th style="text-align:left;">
+Provider
+</th>
+<th style="text-align:left;">
+Description
+</th>
+<th style="text-align:left;">
+Key.variables.used
+</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><strong>Household Energy Profile</strong></td>
-<td>AEW Energie AG</td>
-<td>High‑resolution energy metrics for a residential property
+<td style="text-align:left;">
+<strong>Household Energy Profile</strong>
+</td>
+<td style="text-align:left;">
+AEW Energie AG
+</td>
+<td style="text-align:left;">
+High-resolution energy metrics for a residential property
 (Wynemattestrasse 17) over ~5 years: generation, consumption, and grid
-interaction.</td>
-<td><code>pv_production_k_wh</code> – PV energy production
+interaction.
+</td>
+<td style="text-align:left;">
+<code>pv_production_k_wh</code> – PV energy production
 (kWh)<br><code>consumption_base_load_k_wh</code> – Base load (e.g.,
 refrigerator, standby)<br><code>consumption_heat_pump_k_wh</code> – Heat
 pump consumption<br><code>consumption_ev_charging_k_wh</code> – EV
 charging consumption<br><code>grid_feed_in_pv_k_wh</code> – Surplus PV
-fed into grid<br><code>grid_import_total_k_wh</code> – Total grid
-import</td>
+fed into grid<br><code>grid_import_total_k_wh</code> – Total grid import
+</td>
 </tr>
 <tr>
-<td><strong>Historical Weather Data</strong></td>
-<td>MeteoSwiss</td>
-<td>Hourly weather observations (OGD) used to correlate energy patterns
-with environmental conditions.</td>
-<td><code>temperature_c</code> – Mean air temperature
+<td style="text-align:left;">
+<strong>Historical Weather Data</strong>
+</td>
+<td style="text-align:left;">
+MeteoSwiss
+</td>
+<td style="text-align:left;">
+Hourly weather observations (OGD) used to correlate energy patterns with
+environmental conditions.
+</td>
+<td style="text-align:left;">
+<code>temperature_c</code> – Mean air temperature
 (°C)<br><code>humidity_pct</code> – Mean relative humidity
-(%)<br><code>wind_speed_ms</code> – Mean wind speed (m/s)</td>
+(%)<br><code>wind_speed_ms</code> – Mean wind speed (m/s)
+</td>
 </tr>
 </tbody>
 </table>
@@ -3302,20 +3336,20 @@ modelsummary(
   coef_map = c(&quot;(Intercept)&quot; = &quot;Intercept&quot;,
                &quot;temperature_daily_C&quot; = &quot;Temperature (°C)&quot;)
 )</code></pre>
-<div id="vwfzvfycqj" style="padding-left:0px;padding-right:0px;padding-top:10px;padding-bottom:10px;overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
-<style>#vwfzvfycqj table {
+<div id="awsgqhdvjk" style="padding-left:0px;padding-right:0px;padding-top:10px;padding-bottom:10px;overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
+<style>#awsgqhdvjk table {
 font-family: system-ui, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
 -webkit-font-smoothing: antialiased;
 -moz-osx-font-smoothing: grayscale;
 }
-#vwfzvfycqj thead, #vwfzvfycqj tbody, #vwfzvfycqj tfoot, #vwfzvfycqj tr, #vwfzvfycqj td, #vwfzvfycqj th {
+#awsgqhdvjk thead, #awsgqhdvjk tbody, #awsgqhdvjk tfoot, #awsgqhdvjk tr, #awsgqhdvjk td, #awsgqhdvjk th {
 border-style: none;
 }
-#vwfzvfycqj p {
+#awsgqhdvjk p {
 margin: 0;
 padding: 0;
 }
-#vwfzvfycqj .gt_table {
+#awsgqhdvjk .gt_table {
 display: table;
 border-collapse: collapse;
 line-height: normal;
@@ -3340,11 +3374,11 @@ border-left-style: none;
 border-left-width: 2px;
 border-left-color: #D3D3D3;
 }
-#vwfzvfycqj .gt_caption {
+#awsgqhdvjk .gt_caption {
 padding-top: 4px;
 padding-bottom: 4px;
 }
-#vwfzvfycqj .gt_title {
+#awsgqhdvjk .gt_title {
 color: #333333;
 font-size: 125%;
 font-weight: initial;
@@ -3355,7 +3389,7 @@ padding-right: 5px;
 border-bottom-color: #FFFFFF;
 border-bottom-width: 0;
 }
-#vwfzvfycqj .gt_subtitle {
+#awsgqhdvjk .gt_subtitle {
 color: #333333;
 font-size: 85%;
 font-weight: initial;
@@ -3366,7 +3400,7 @@ padding-right: 5px;
 border-top-color: #FFFFFF;
 border-top-width: 0;
 }
-#vwfzvfycqj .gt_heading {
+#awsgqhdvjk .gt_heading {
 background-color: #FFFFFF;
 text-align: center;
 border-bottom-color: #FFFFFF;
@@ -3377,12 +3411,12 @@ border-right-style: none;
 border-right-width: 1px;
 border-right-color: #D3D3D3;
 }
-#vwfzvfycqj .gt_bottom_border {
+#awsgqhdvjk .gt_bottom_border {
 border-bottom-style: solid;
 border-bottom-width: 2px;
 border-bottom-color: #D3D3D3;
 }
-#vwfzvfycqj .gt_col_headings {
+#awsgqhdvjk .gt_col_headings {
 border-top-style: solid;
 border-top-width: 2px;
 border-top-color: #D3D3D3;
@@ -3396,7 +3430,7 @@ border-right-style: none;
 border-right-width: 1px;
 border-right-color: #D3D3D3;
 }
-#vwfzvfycqj .gt_col_heading {
+#awsgqhdvjk .gt_col_heading {
 color: #333333;
 background-color: #FFFFFF;
 font-size: 100%;
@@ -3415,7 +3449,7 @@ padding-left: 5px;
 padding-right: 5px;
 overflow-x: hidden;
 }
-#vwfzvfycqj .gt_column_spanner_outer {
+#awsgqhdvjk .gt_column_spanner_outer {
 color: #333333;
 background-color: #FFFFFF;
 font-size: 100%;
@@ -3426,13 +3460,13 @@ padding-bottom: 0;
 padding-left: 4px;
 padding-right: 4px;
 }
-#vwfzvfycqj .gt_column_spanner_outer:first-child {
+#awsgqhdvjk .gt_column_spanner_outer:first-child {
 padding-left: 0;
 }
-#vwfzvfycqj .gt_column_spanner_outer:last-child {
+#awsgqhdvjk .gt_column_spanner_outer:last-child {
 padding-right: 0;
 }
-#vwfzvfycqj .gt_column_spanner {
+#awsgqhdvjk .gt_column_spanner {
 border-bottom-style: solid;
 border-bottom-width: 2px;
 border-bottom-color: #D3D3D3;
@@ -3443,10 +3477,10 @@ overflow-x: hidden;
 display: inline-block;
 width: 100%;
 }
-#vwfzvfycqj .gt_spanner_row {
+#awsgqhdvjk .gt_spanner_row {
 border-bottom-style: hidden;
 }
-#vwfzvfycqj .gt_group_heading {
+#awsgqhdvjk .gt_group_heading {
 padding-top: 8px;
 padding-bottom: 8px;
 padding-left: 5px;
@@ -3471,7 +3505,7 @@ border-right-color: #D3D3D3;
 vertical-align: middle;
 text-align: left;
 }
-#vwfzvfycqj .gt_empty_group_heading {
+#awsgqhdvjk .gt_empty_group_heading {
 padding: 0.5px;
 color: #333333;
 background-color: #FFFFFF;
@@ -3485,13 +3519,13 @@ border-bottom-width: 2px;
 border-bottom-color: #D3D3D3;
 vertical-align: middle;
 }
-#vwfzvfycqj .gt_from_md > :first-child {
+#awsgqhdvjk .gt_from_md > :first-child {
 margin-top: 0;
 }
-#vwfzvfycqj .gt_from_md > :last-child {
+#awsgqhdvjk .gt_from_md > :last-child {
 margin-bottom: 0;
 }
-#vwfzvfycqj .gt_row {
+#awsgqhdvjk .gt_row {
 padding-top: 8px;
 padding-bottom: 8px;
 padding-left: 5px;
@@ -3509,7 +3543,7 @@ border-right-color: #D3D3D3;
 vertical-align: middle;
 overflow-x: hidden;
 }
-#vwfzvfycqj .gt_stub {
+#awsgqhdvjk .gt_stub {
 color: #333333;
 background-color: #FFFFFF;
 font-size: 100%;
@@ -3521,7 +3555,7 @@ border-right-color: #D3D3D3;
 padding-left: 5px;
 padding-right: 5px;
 }
-#vwfzvfycqj .gt_stub_row_group {
+#awsgqhdvjk .gt_stub_row_group {
 color: #333333;
 background-color: #FFFFFF;
 font-size: 100%;
@@ -3534,13 +3568,13 @@ padding-left: 5px;
 padding-right: 5px;
 vertical-align: top;
 }
-#vwfzvfycqj .gt_row_group_first td {
+#awsgqhdvjk .gt_row_group_first td {
 border-top-width: 2px;
 }
-#vwfzvfycqj .gt_row_group_first th {
+#awsgqhdvjk .gt_row_group_first th {
 border-top-width: 2px;
 }
-#vwfzvfycqj .gt_summary_row {
+#awsgqhdvjk .gt_summary_row {
 color: #333333;
 background-color: #FFFFFF;
 text-transform: inherit;
@@ -3549,14 +3583,14 @@ padding-bottom: 8px;
 padding-left: 5px;
 padding-right: 5px;
 }
-#vwfzvfycqj .gt_first_summary_row {
+#awsgqhdvjk .gt_first_summary_row {
 border-top-style: solid;
 border-top-color: #D3D3D3;
 }
-#vwfzvfycqj .gt_first_summary_row.thick {
+#awsgqhdvjk .gt_first_summary_row.thick {
 border-top-width: 2px;
 }
-#vwfzvfycqj .gt_last_summary_row {
+#awsgqhdvjk .gt_last_summary_row {
 padding-top: 8px;
 padding-bottom: 8px;
 padding-left: 5px;
@@ -3565,7 +3599,7 @@ border-bottom-style: solid;
 border-bottom-width: 2px;
 border-bottom-color: #D3D3D3;
 }
-#vwfzvfycqj .gt_grand_summary_row {
+#awsgqhdvjk .gt_grand_summary_row {
 color: #333333;
 background-color: #FFFFFF;
 text-transform: inherit;
@@ -3574,7 +3608,7 @@ padding-bottom: 8px;
 padding-left: 5px;
 padding-right: 5px;
 }
-#vwfzvfycqj .gt_first_grand_summary_row {
+#awsgqhdvjk .gt_first_grand_summary_row {
 padding-top: 8px;
 padding-bottom: 8px;
 padding-left: 5px;
@@ -3583,7 +3617,7 @@ border-top-style: double;
 border-top-width: 6px;
 border-top-color: #D3D3D3;
 }
-#vwfzvfycqj .gt_last_grand_summary_row_top {
+#awsgqhdvjk .gt_last_grand_summary_row_top {
 padding-top: 8px;
 padding-bottom: 8px;
 padding-left: 5px;
@@ -3592,10 +3626,10 @@ border-bottom-style: double;
 border-bottom-width: 6px;
 border-bottom-color: #D3D3D3;
 }
-#vwfzvfycqj .gt_striped {
+#awsgqhdvjk .gt_striped {
 background-color: rgba(128, 128, 128, 0.05);
 }
-#vwfzvfycqj .gt_table_body {
+#awsgqhdvjk .gt_table_body {
 border-top-style: solid;
 border-top-width: 2px;
 border-top-color: #D3D3D3;
@@ -3603,7 +3637,7 @@ border-bottom-style: solid;
 border-bottom-width: 2px;
 border-bottom-color: #D3D3D3;
 }
-#vwfzvfycqj .gt_footnotes {
+#awsgqhdvjk .gt_footnotes {
 color: #333333;
 background-color: #FFFFFF;
 border-bottom-style: none;
@@ -3616,7 +3650,7 @@ border-right-style: none;
 border-right-width: 2px;
 border-right-color: #D3D3D3;
 }
-#vwfzvfycqj .gt_footnote {
+#awsgqhdvjk .gt_footnote {
 margin: 0px;
 font-size: 90%;
 padding-top: 4px;
@@ -3624,7 +3658,7 @@ padding-bottom: 4px;
 padding-left: 5px;
 padding-right: 5px;
 }
-#vwfzvfycqj .gt_sourcenotes {
+#awsgqhdvjk .gt_sourcenotes {
 color: #333333;
 background-color: #FFFFFF;
 border-bottom-style: none;
@@ -3637,64 +3671,64 @@ border-right-style: none;
 border-right-width: 2px;
 border-right-color: #D3D3D3;
 }
-#vwfzvfycqj .gt_sourcenote {
+#awsgqhdvjk .gt_sourcenote {
 font-size: 90%;
 padding-top: 4px;
 padding-bottom: 4px;
 padding-left: 5px;
 padding-right: 5px;
 }
-#vwfzvfycqj .gt_left {
+#awsgqhdvjk .gt_left {
 text-align: left;
 }
-#vwfzvfycqj .gt_center {
+#awsgqhdvjk .gt_center {
 text-align: center;
 }
-#vwfzvfycqj .gt_right {
+#awsgqhdvjk .gt_right {
 text-align: right;
 font-variant-numeric: tabular-nums;
 }
-#vwfzvfycqj .gt_font_normal {
+#awsgqhdvjk .gt_font_normal {
 font-weight: normal;
 }
-#vwfzvfycqj .gt_font_bold {
+#awsgqhdvjk .gt_font_bold {
 font-weight: bold;
 }
-#vwfzvfycqj .gt_font_italic {
+#awsgqhdvjk .gt_font_italic {
 font-style: italic;
 }
-#vwfzvfycqj .gt_super {
+#awsgqhdvjk .gt_super {
 font-size: 65%;
 }
-#vwfzvfycqj .gt_footnote_marks {
+#awsgqhdvjk .gt_footnote_marks {
 font-size: 75%;
 vertical-align: 0.4em;
 position: initial;
 }
-#vwfzvfycqj .gt_asterisk {
+#awsgqhdvjk .gt_asterisk {
 font-size: 100%;
 vertical-align: 0;
 }
-#vwfzvfycqj .gt_indent_1 {
+#awsgqhdvjk .gt_indent_1 {
 text-indent: 5px;
 }
-#vwfzvfycqj .gt_indent_2 {
+#awsgqhdvjk .gt_indent_2 {
 text-indent: 10px;
 }
-#vwfzvfycqj .gt_indent_3 {
+#awsgqhdvjk .gt_indent_3 {
 text-indent: 15px;
 }
-#vwfzvfycqj .gt_indent_4 {
+#awsgqhdvjk .gt_indent_4 {
 text-indent: 20px;
 }
-#vwfzvfycqj .gt_indent_5 {
+#awsgqhdvjk .gt_indent_5 {
 text-indent: 25px;
 }
-#vwfzvfycqj .katex-display {
+#awsgqhdvjk .katex-display {
 display: inline-flex !important;
 margin-bottom: 0.75em !important;
 }
-#vwfzvfycqj div.Reactable > div.rt-table > div.rt-thead > div.rt-tr.rt-tr-group-header > div.rt-th-group:after {
+#awsgqhdvjk div.Reactable > div.rt-table > div.rt-thead > div.rt-tr.rt-tr-group-header > div.rt-th-group:after {
 height: 0px !important;
 }
 </style>
@@ -3739,8 +3773,8 @@ height: 0px !important;
   </tfoot>
 </table>
 </div>
-<div id="results-of-the-regression-models" class="section level3">
-<h3>Results of the regression models</h3>
+<div id="results-of-the-regression-models" class="section level4">
+<h4>Results of the regression models</h4>
 <p>The regression of heat pump consumption on daily temperature shows a
 strong negative relationship (β = –2.89, p &lt; 0.001, R² = 0.72). This
 confirms that warmer days lead to substantially lower heating demand.
