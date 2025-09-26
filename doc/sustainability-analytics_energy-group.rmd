@@ -598,13 +598,13 @@ season_summary_tbl %>%
 
 **Optimization Suggestions:** Based on the PV production analysis, the results indicate that the solar panels generate substantially less energy during the autumn and winter seasons compared to reference in the same region. This points to a fundamental inefficiency in the current system configuration. Consequently, there is considerable potential for optimization. Possible strategies include:
 
--- Adjusting panel tilt or orientation to better capture low-angle winter sunlight, or considering dual-tilt/adjustable mounting systems.
+-   Adjusting panel tilt or orientation to better capture low-angle winter sunlight, or considering dual-tilt/adjustable mounting systems.
 
--- Installing higher-efficiency modules designed for low-light conditions, which can improve energy yield during cloudy or short-day periods.
+-   Installing higher-efficiency modules designed for low-light conditions, which can improve energy yield during cloudy or short-day periods.
 
--- Regular maintenance and snow management to prevent shading or coverage that can drastically reduce winter output.
+-   Regular maintenance and snow management to prevent shading or coverage that can drastically reduce winter output.
 
--- Integrating storage solutions (e.g., batteries) or load shifting strategies to maximize the use of PV energy when production is highest.
+-   Integrating storage solutions (e.g., batteries) or load shifting strategies to maximize the use of PV energy when production is highest.
 
 Implementing such measures could reduce the seasonal mismatch between generation and demand, improve self-consumption, and increase the overall sustainability and resilience of the system.
 
@@ -812,15 +812,15 @@ ggplot() +
 
 
 **Optimization Suggestions:**
--- Shift Charging to Daytime Hours: Most EV charging currently occurs at night (9 pm–3 am), when PV production is zero. Rescheduling charging to mid-day (10 am–4 pm), especially in spring and summer, would allow a significant portion of the EV demand to be met directly from PV generation @Fachrizal2020.
+-   Shift Charging to Daytime Hours: Most EV charging currently occurs at night (9 pm–3 am), when PV production is zero. Rescheduling charging to mid-day (10 am–4 pm), especially in spring and summer, would allow a significant portion of the EV demand to be met directly from PV generation @Fachrizal2020.
 
--- Smart Charging / Automated Scheduling: Use smart chargers or time-based charging programs to automatically prioritize charging during periods of surplus solar output @Ye2024. This reduces reliance on grid imports and minimizes energy wasted in feed-in (low compensation tariffs).
+-   Smart Charging / Automated Scheduling: Use smart chargers or time-based charging programs to automatically prioritize charging during periods of surplus solar output @Ye2024. This reduces reliance on grid imports and minimizes energy wasted in feed-in (low compensation tariffs).
 
--- Flexible Charging Strategies: Instead of fully charging the EV overnight, apply partial daytime charging when PV is available. Example: If the EV is parked at home during work-from-home days or weekends, charge incrementally during peak PV hours.
+-   Flexible Charging Strategies: Instead of fully charging the EV overnight, apply partial daytime charging when PV is available. Example: If the EV is parked at home during work-from-home days or weekends, charge incrementally during peak PV hours.
 
--- Battery Storage Integration: If daily charging flexibility is limited (e.g., car is absent during daytime), adding a home battery could store excess solar from mid-day and discharge it during evening EV charging. This increases PV self-consumption not only for the EV but also for other household loads @Gu2025, @Ullner2025.
+-   Battery Storage Integration: If daily charging flexibility is limited (e.g., car is absent during daytime), adding a home battery could store excess solar from mid-day and discharge it during evening EV charging. This increases PV self-consumption not only for the EV but also for other household loads @Gu2025, @Ullner2025.
 
--- Dynamic Tariff and Grid Optimization: Combine smart charging with real-time electricity price signals, Use cheap off-peak grid electricity at night only when PV availability is insufficient. Prioritize solar charging whenever possible to reduce long-term electricity costs.
+-   Dynamic Tariff and Grid Optimization: Combine smart charging with real-time electricity price signals, Use cheap off-peak grid electricity at night only when PV availability is insufficient. Prioritize solar charging whenever possible to reduce long-term electricity costs.
 
 
 ### 5.3 Battery Storage Potential
@@ -1087,4 +1087,16 @@ Beyond this, the report serves as an evidence-based briefing document for engagi
 
 By implementing these data-driven strategies, the homeowner can transition from a passive consumer to an active manager of their own energy ecosystem. This analysis provides the foundation to increase energy independence, reduce costs, and create a more sustainable and resilient household.
 
+## 10. GenAI Declaration 
+
+In this project, we used AI tools (mainly ChatGPT) to support code revision and report writing.
+Examples include:
+
+-   Refining code syntax and improving ggplot visualizations
+
+-   Debugging errors and warnings
+
+-   Clarifying explanations, such as model interpretations
+
+All AI suggestions were tested and reviewed before inclusion to ensure accuracy. Overall, AI was helpful, but careful verification was essential.
 
