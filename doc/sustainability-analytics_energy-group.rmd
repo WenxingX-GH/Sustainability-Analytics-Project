@@ -832,70 +832,64 @@ hourly_net <- final_df_h %>%
     net_kwh = pv_production_k_wh - total_consumption
   )
 
-# 2. Aggregate daily surplus/deficit and calculate cumulative surplus per year
+# 2. Aggregate to find daily surplus (charge potential) and deficit (discharge demand)
 daily_battery_potential <- hourly_net %>%
   group_by(date) %>%
   summarise(
-    charge_potential_kwh = sum(net_kwh[net_kwh > 0]),
-    discharge_demand_kwh = abs(sum(net_kwh[net_kwh < 0])), # abs() here is cleaner
+    charge_potential_kwh = sum(net_kwh[net_kwh > 0], na.rm = TRUE),
+    discharge_demand_kwh = abs(sum(net_kwh[net_kwh < 0], na.rm = TRUE)),
     .groups = "drop"
   ) %>%
-  # Arrange by date and calculate the cumulative sum, resetting each year
   arrange(date) %>%
   group_by(year = year(date)) %>%
-  mutate(
-    cumulative_surplus_kwh = cumsum(charge_potential_kwh)
-  ) %>%
+  mutate(cumulative_surplus_kwh = cumsum(charge_potential_kwh)) %>%
   ungroup()
 
-# 3. Define a scaling factor for the secondary axis
-# This helps both geoms appear clearly on the plot
-scaling_factor <- max(daily_battery_potential$cumulative_surplus_kwh) / max(daily_battery_potential$charge_potential_kwh, na.rm = TRUE)
+# 3. Define a scaling factor to properly display the secondary y-axis
+# This ensures both the daily and cumulative values are visible on the plot
+scaling_factor <- max(daily_battery_potential$cumulative_surplus_kwh, na.rm = TRUE) / 
+                  max(daily_battery_potential$charge_potential_kwh, na.rm = TRUE)
 
-# 4. Plot the results with the new cumulative area
+# 4. Plot the results
 ggplot(daily_battery_potential, aes(x = date)) +
-  # Add the cumulative surplus as a filled area plot
-  geom_area(
-    aes(y = cumulative_surplus_kwh / scaling_factor, fill = "Cumulative Annual Surplus"),
-    alpha = 0.3
-  ) +
-  # Keep the daily potential and demand as lines
+  # Daily Surplus and Deficit as lines
   geom_line(aes(y = charge_potential_kwh, color = "Daily Surplus (Charge Potential)"), linewidth = 0.8) +
   geom_line(aes(y = discharge_demand_kwh, color = "Daily Deficit (Discharge Demand)"), linewidth = 0.8) +
   
-  # Add manual scales for colors and fill
-  scale_color_manual(values = c(
-    "Daily Surplus (Charge Potential)" = "darkgreen",
-    "Daily Deficit (Discharge Demand)" = "darkred"
-  )) +
-  scale_fill_manual(values = c(
-    "Cumulative Annual Surplus" = "steelblue"
-  )) +
+  # Cumulative Annual Surplus as a filled area, scaled to fit the plot
+  geom_area(aes(y = cumulative_surplus_kwh / scaling_factor, fill = "Cumulative Annual Surplus"), alpha = 0.3) +
   
   # Define the primary and secondary y-axes
- scale_y_continuous(
-   name = "Daily Energy (kWh)",
-   sec.axis = sec_axis(~ . * scaling_factor, name = "Cumulative Annual Surplus (kWh)")
- ) +
+  scale_y_continuous(
+    name = "Daily Energy (kWh)",
+    sec.axis = sec_axis(~ . * scaling_factor, name = "Cumulative Annual Surplus (kWh)")
+  ) +
   
-  # Add informative labels and title
+  # Manual scales for colors and fills for a clear legend
+  scale_color_manual(
+    name = "Daily Metric",
+    values = c(
+      "Daily Surplus (Charge Potential)" = "darkgreen",
+      "Daily Deficit (Discharge Demand)" = "darkred"
+    )
+  ) +
+  scale_fill_manual(
+    name = "Annual Metric",
+    values = c("Cumulative Annual Surplus" = "steelblue")
+  ) +
+  
+  # Labels and theme
   labs(
     title = "Daily and Cumulative Annual Potential for Battery Storage",
     subtitle = "Lines show daily energy surplus/deficit; Area shows total accumulated surplus each year.",
     x = "Date",
-    color = "Daily Metric",
-    fill = "Annual Metric"
+    y = "Daily Energy (kWh)"
   ) +
-  
-  # Apply consistent theme
   theme_minimal(base_size = 16) +
   theme(
-    plot.title = element_text(size = 20, face = "bold"),
-    axis.title = element_text(size = 14),
-    axis.text = element_text(size = 12),
     legend.position = "bottom",
     legend.box = "vertical",
-    legend.margin = margin(t = 10)
+    plot.title = element_text(face = "bold")
   )
 
 ```
@@ -1075,3 +1069,4 @@ Beyond this, the report serves as an evidence-based briefing document for engagi
 -   Request precise quotes for a 10-15 kWh battery system, using this analysis to validate the required capacity.
 
 By implementing these data-driven strategies, the homeowner can transition from a passive consumer to an active manager of their own energy ecosystem. This analysis provides the foundation to increase energy independence, reduce costs, and create a more sustainable and resilient household.
+
